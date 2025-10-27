@@ -1,2 +1,2 @@
-# SanpAttend
+# SnapAttend
 Attendance via QR Scanning
