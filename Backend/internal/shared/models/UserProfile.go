@@ -1,15 +1,15 @@
 package models
 
-type userRoles string
+type UserRoles string
 
 const (
-	student   userRoles = "Student"
-	professor userRoles = "Professor"
-	admin     userRoles = "Admin"
+	Student   UserRoles = "Student"
+	Professor UserRoles = "Professor"
+	Admin     UserRoles = "Admin"
 )
 
 type UserProfile struct {
-	ProfileId uint      `gorm:"primaryKey; autoIncrement"`
-	Role      userRoles `gorm:"unique; not null"`
-	User      []User
+	ProfileId uint      `gorm:"primaryKey;autoIncrement"`
+	Role      UserRoles `gorm:"type:varchar(15);uniqueIndex;not null"`
+	Users     []User    `gorm:"foreignKey:ProfileId"`
 }
