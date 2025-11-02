@@ -11,4 +11,5 @@ const (
 type UserProfile struct {
 	ProfileId uint      `gorm:"primaryKey; autoIncrement"`
 	Role      userRoles `gorm:"unique; not null"`
+	User      []User
 }
