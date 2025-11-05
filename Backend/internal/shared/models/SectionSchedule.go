@@ -2,23 +2,23 @@ package models
 
 import "gorm.io/datatypes"
 
-type daysOfTheWeek string
+type DayOfWeek string
 
 const (
-	monday    daysOfTheWeek = "Monday"
-	tuesday   daysOfTheWeek = "Tuesday"
-	wednesday daysOfTheWeek = "Wednesday"
-	thursday  daysOfTheWeek = "Thursday"
-	friday    daysOfTheWeek = "Friday"
-	saturday  daysOfTheWeek = "Saturday"
-	sunday    daysOfTheWeek = "Sunday"
+	Monday    DayOfWeek = "Monday"
+	Tuesday   DayOfWeek = "Tuesday"
+	Wednesday DayOfWeek = "Wednesday"
+	Thursday  DayOfWeek = "Thursday"
+	Friday    DayOfWeek = "Friday"
+	Saturday  DayOfWeek = "Saturday"
+	Sunday    DayOfWeek = "Sunday"
 )
 
 type SectionSchedule struct {
-	scheduleId     uint           `gorm:"primaryKey; autoIncrement"`
-	sectionId      uint           `gorm:"not null"`
-	courseSection  CourseSection  `gorm:"foreignKey:sectionId"`
-	daysOfTheClass daysOfTheWeek  `gorm:"not null"`
-	startTime      datatypes.Time `gorm:"not null"`
-	endTime        datatypes.Time `gorm:"not null"`
+	ScheduleId     uint           `gorm:"primaryKey;autoIncrement"`
+	SectionId      uint           `gorm:"not null;uniqueIndex:idx_schedule_unique;index:idx_schedule_section"`
+	CourseSection  CourseSection  `gorm:"foreignKey:SectionId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	DaysOfTheClass DayOfWeek      `gorm:"type:varchar(15);not null;uniqueIndex:idx_schedule_unique"`
+	StartTime      datatypes.Time `gorm:"not null;uniqueIndex:idx_schedule_unique;index:idx_schedule_start_time"`
+	EndTime        datatypes.Time `gorm:"not null"`
 }

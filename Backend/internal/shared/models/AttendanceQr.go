@@ -1,15 +1,16 @@
 package models
 
 import (
-	"gorm.io/datatypes"
+	"time"
 )
 
 type AttendanceQr struct {
-	qrId           uint           `gorm:"primaryKey; autoIncrement"`
-	sectionId      string         `gorm:"not null"`
-	courseSection  CourseSection  `gorm:"foreignKey:sectionId"`
-	qrLink         string         `gorm:"not null"`
-	generatedDate  datatypes.Date `gorm:"not null"`
-	generatedTime  datatypes.Time `gorm:"not null"`
-	expirationTime datatypes.Time `gorm:"not null"`
+	QrId               uint                `gorm:"primaryKey;autoIncrement"`
+	SectionId          uint                `gorm:"not null;index:idx_qr_section"`
+	CourseSection      CourseSection       `gorm:"foreignKey:SectionId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	QrLink             string              `gorm:"type:varchar(255);uniqueIndex;not null"`
+	GeneratedAt        time.Time           `gorm:"not null"`
+	ExpiresAt          time.Time           `gorm:"not null"`
+	IsActive           bool                `gorm:"default:true;index:idx_qr_is_active"`
+	StudentAttendances []StudentAttendance `gorm:"foreignKey:QrId"`
 }
