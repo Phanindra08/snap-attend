@@ -24,7 +24,6 @@ func ValidateStructTypes(structData interface{}) error {
 func validatePassword(fl validator.FieldLevel) bool {
 	password := fl.Field().String()
 	var (
-		hasMinimumLength    = len(password) >= 8
 		hasUpperCaseLetter  = false
 		hasLowerCaseLetter  = false
 		hasNumber           = false
@@ -42,11 +41,22 @@ func validatePassword(fl validator.FieldLevel) bool {
 			hasSpecialCharacter = true
 		}
 	}
-	return hasMinimumLength && hasUpperCaseLetter && hasLowerCaseLetter && hasNumber && hasSpecialCharacter
+	return len(password) >= 8 && hasUpperCaseLetter && hasLowerCaseLetter && hasNumber && hasSpecialCharacter
 }
 
 // validateDateNotInPast - The function helps to validate that the date is not in the past
 func validateDateNotInPast(fl validator.FieldLevel) bool {
-	date := fl.Field().Interface().(time.Time)
-	return !date.Before(time.Now())
+	var date time.Time
+	if datePtr, ok := fl.Field().Interface().(*time.Time); ok {
+		if datePtr == nil {
+			return true // As nil pointer is considered valid
+		}
+		date = *datePtr
+	} else if dateVal, ok := fl.Field().Interface().(time.Time); ok {
+		date = dateVal
+	} else {
+		return false
+	}
+	startOfToday := getStartOfToday() // To get the start of today's date
+	return !date.Before(startOfToday)
 }
