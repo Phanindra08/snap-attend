@@ -10,19 +10,19 @@ import (
 )
 
 type Config struct {
-	server struct {
-		port      int    `mapstructure:"port"`
-		jwtSecret string `mapstructure:"jwt_secret"`
+	Server struct {
+		Port      int    `mapstructure:"port"`
+		JwtSecret string `mapstructure:"jwt_secret"`
 	} `mapstructure:"server"`
 
-	database struct {
-		host         string `mapstructure:"host"`
-		port         int    `mapstructure:"port"`
-		username     string `mapstructure:"username"`
-		password     string `mapstructure:"password"`
-		databaseName string `mapstructure:"database-name"`
-		schema       string `mapstructure:"schema"`
-		sslMode      string `mapstructure:"ssl-mode"`
+	Database struct {
+		Host         string `mapstructure:"host"`
+		Port         int    `mapstructure:"Port"`
+		Username     string `mapstructure:"username"`
+		Password     string `mapstructure:"password"`
+		DatabaseName string `mapstructure:"database-name"`
+		Schema       string `mapstructure:"schema"`
+		SslMode      string `mapstructure:"ssl-mode"`
 	} `mapstructure:"database"`
 }
 
@@ -30,10 +30,11 @@ var appConfiguration *Config
 
 // GetConnectionStringForDB returns the formatted PostGre SQL connection string
 func (configuration *Config) GetConnectionStringForDB() string {
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		configuration.database.host, configuration.database.port,
-		configuration.database.username, configuration.database.password,
-		configuration.database.databaseName, configuration.database.sslMode)
+	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s search_path=%s",
+		configuration.Database.Host, configuration.Database.Port,
+		configuration.Database.Username, configuration.Database.Password,
+		configuration.Database.DatabaseName, configuration.Database.SslMode,
+		configuration.Database.Schema)
 }
 
 func (configuration *Config) validateConfig() {
@@ -42,12 +43,12 @@ func (configuration *Config) validateConfig() {
 		name      string
 		minLength int
 	}{
-		{appConfiguration.server.jwtSecret, utils.VALIDATING_JWT_SECRET, 32},
-		{appConfiguration.database.host, utils.VALIDATING_HOST, 32},
-		{appConfiguration.database.username, utils.VALIDATING_DB_USERNAME, 1},
-		{appConfiguration.database.password, utils.VALIDATING_PASSWORD, 5},
-		{appConfiguration.database.databaseName, utils.VALIDATING_DB_NAME, 1},
-		{appConfiguration.database.schema, utils.VALIDATING_SCHEMA, 1},
+		{appConfiguration.Server.JwtSecret, utils.VALIDATING_JWT_SECRET, 32},
+		{appConfiguration.Database.Host, utils.VALIDATING_HOST, 1},
+		{appConfiguration.Database.Username, utils.VALIDATING_DB_USERNAME, 1},
+		{appConfiguration.Database.Password, utils.VALIDATING_PASSWORD, 5},
+		{appConfiguration.Database.DatabaseName, utils.VALIDATING_DB_NAME, 1},
+		{appConfiguration.Database.Schema, utils.VALIDATING_SCHEMA, 1},
 	}
 
 	// Validating the length of the DB configurations and JWT Secret
@@ -57,25 +58,25 @@ func (configuration *Config) validateConfig() {
 		}
 	}
 
-	// Validate if the DB port is a valid number
-	if configuration.database.port <= utils.MIN_TCP_PORT || configuration.database.port > utils.MAX_TCP_PORT {
+	// Validate if the DB Port is a valid number
+	if configuration.Database.Port <= utils.MIN_TCP_PORT || configuration.Database.Port > utils.MAX_TCP_PORT {
 		log.Fatalf("Configuration error: DB PORT must be between %d and %d", utils.MIN_TCP_PORT, utils.MAX_TCP_PORT)
 	}
 
-	// Validate if the server port is a valid number
-	if configuration.server.port <= utils.MIN_TCP_PORT || configuration.server.port > utils.MAX_TCP_PORT {
+	// Validate if the server Port is a valid number
+	if configuration.Server.Port <= utils.MIN_TCP_PORT || configuration.Server.Port > utils.MAX_TCP_PORT {
 		log.Fatalf("Configuration error: Server PORT must be between %d and %d", utils.MIN_TCP_PORT, utils.MAX_TCP_PORT)
 	}
 
-	// Warn if the server port is using a privileged port
-	if configuration.server.port < 1024 {
-		log.Printf("Warning: Server port %d is in the privileged range (1 - %d). Binding to this port may require root privileges.", configuration.server.port, utils.MAX_PRIVILEGED_PORT)
+	// Warn if the server Port is using a privileged Port
+	if configuration.Server.Port < 1024 {
+		log.Printf("Warning: Server Port %d is in the privileged range (1 - %d). Binding to this Port may require root privileges.", configuration.Server.Port, utils.MAX_PRIVILEGED_PORT)
 	}
 }
 
 // GetServerPort - returns the Port the application is running
 func (configuration *Config) GetServerPort() int {
-	return configuration.server.port
+	return configuration.Server.Port
 }
 
 // GetConfig - Getter function for getting the Config type variable
@@ -104,6 +105,7 @@ func loadConfiguration() {
 		log.Fatalf("Error reading the configuration file: %v", err)
 	}
 
+	appConfiguration = &Config{} // Initializing the struct
 	if err := viper.Unmarshal(appConfiguration); err != nil {
 		log.Fatalf("Unable to parse and decode into struct: %v", err)
 	}
