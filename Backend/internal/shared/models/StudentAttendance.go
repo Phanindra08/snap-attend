@@ -5,7 +5,7 @@ import (
 )
 
 type StudentAttendance struct {
-	AttendanceId    uint         `gorm:"primaryKey;autoIncrement"`
+	ID              uint         `gorm:"primaryKey;autoIncrement"`
 	StudentId       uint         `gorm:"not null;uniqueIndex:idx_attendance_unique;index:idx_attendance_student"`
 	User            User         `gorm:"foreignKey:StudentId;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
 	QrId            uint         `gorm:"not null;uniqueIndex:idx_attendance_unique;index:idx_attendance_qr"`

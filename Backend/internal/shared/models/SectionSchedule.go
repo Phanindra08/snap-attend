@@ -15,7 +15,7 @@ const (
 )
 
 type SectionSchedule struct {
-	ScheduleId     uint           `gorm:"primaryKey;autoIncrement"`
+	ID             uint           `gorm:"primaryKey;autoIncrement"`
 	SectionId      uint           `gorm:"not null;uniqueIndex:idx_schedule_unique;index:idx_schedule_section"`
 	CourseSection  CourseSection  `gorm:"foreignKey:SectionId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	DaysOfTheClass DayOfWeek      `gorm:"type:varchar(15);not null;uniqueIndex:idx_schedule_unique"`
