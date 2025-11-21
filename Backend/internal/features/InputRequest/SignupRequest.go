@@ -14,5 +14,5 @@ type SignupRequest struct {
 	City     string `json:"city" binding:"required"`
 	State    string `json:"state" binding:"required"`
 	ZipCode  string `json:"zipCode" binding:"required"`
-	Country  string `json:"country" binding:"required"`
+	Country  string `json:"country"`
 }

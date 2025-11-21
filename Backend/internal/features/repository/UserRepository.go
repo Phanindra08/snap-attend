@@ -12,11 +12,14 @@ import (
 var (
 	ErrUserNotFound        = errors.New("user not found")
 	ErrUserProfileNotFound = errors.New("user profile not found")
+	ErrAddressNotFound     = errors.New("address not found")
 )
 
 type UserRepository interface {
 	GetUserProfileByRole(ctx context.Context, role models.UserRoles) (*models.UserProfile, error)
 	SaveAddress(ctx context.Context, address *models.Address) error
+	GetAddressByID(ctx context.Context, id uint) (*models.Address, error)
+	UpdateAddress(ctx context.Context, address *models.Address) error
 	SaveUser(ctx context.Context, user *models.User) error
 	FindByID(ctx context.Context, id uint) (*models.User, error)
 	FindByEmailAndRole(ctx context.Context, email string, role models.UserRoles) (*models.User, error)
@@ -52,11 +55,28 @@ func (userRepo *userRepository) SaveAddress(ctx context.Context, address *models
 	return nil
 }
 
+func (userRepo *userRepository) GetAddressByID(ctx context.Context, id uint) (*models.Address, error) {
+	var address models.Address
+	if err := userRepo.db.WithContext(ctx).First(&address, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrAddressNotFound
+		}
+		return nil, fmt.Errorf("can't find address: %w", err)
+	}
+	return &address, nil
+}
+
+func (userRepo *userRepository) UpdateAddress(ctx context.Context, address *models.Address) error {
+	if err := userRepo.db.WithContext(ctx).Save(address).Error; err != nil {
+		return fmt.Errorf("can't update address: %w", err)
+	}
+	return nil
+}
+
 // ----- DB Operations for User -----
 
 func (userRepo *userRepository) SaveUser(ctx context.Context, user *models.User) error {
-	err := userRepo.db.WithContext(ctx).Create(user).Error
-	if err != nil {
+	if err := userRepo.db.WithContext(ctx).Create(user).Error; err != nil {
 		return fmt.Errorf("can't save user: %w", err)
 	}
 	return nil
@@ -64,8 +84,7 @@ func (userRepo *userRepository) SaveUser(ctx context.Context, user *models.User)
 
 func (userRepo *userRepository) FindByID(ctx context.Context, id uint) (*models.User, error) {
 	var user models.User
-	err := userRepo.db.WithContext(ctx).First(&user, id).Error
-	if err != nil {
+	if err := userRepo.db.WithContext(ctx).First(&user, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrUserNotFound
 		}
@@ -78,7 +97,8 @@ func (userRepo *userRepository) FindByEmailAndRole(ctx context.Context, email st
 	var user models.User
 	err := userRepo.db.WithContext(ctx).
 		Joins("UserProfile").
-		Where("users.email = ? AND user_profiles.role = ?", email, role).
+		Preload("UserProfile").
+		Where("users.email = ? AND \"UserProfile\".role = ?", email, role).
 		First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -99,8 +119,7 @@ func (userRepo *userRepository) FindByName(ctx context.Context, firstName string
 }
 
 func (userRepo *userRepository) UpdateUser(ctx context.Context, user *models.User) error {
-	err := userRepo.db.WithContext(ctx).Save(user).Error
-	if err != nil {
+	if err := userRepo.db.WithContext(ctx).Save(user).Error; err != nil {
 		return fmt.Errorf("can't update the user: %w", err)
 	}
 	return nil

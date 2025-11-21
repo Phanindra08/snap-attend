@@ -15,3 +15,7 @@ var getStartOfToday = func() time.Time {
 	year, month, day := now.Date()
 	return time.Date(year, month, day, 0, 0, 0, 0, now.Location())
 }
+
+func IsEmpty(content string) bool {
+	return len(strings.TrimSpace(content)) == 0
+}

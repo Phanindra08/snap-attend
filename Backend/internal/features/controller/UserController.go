@@ -92,45 +92,45 @@ func (uc *UserController) Signup(ctx *gin.Context) {
 	})
 }
 
-func (uc *UserController) Login(c *gin.Context) {
+func (uc *UserController) Login(ctx *gin.Context) {
 	var loginRequest InputRequest.LoginRequest
-	if err := c.ShouldBindJSON(&loginRequest); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := ctx.ShouldBindJSON(&loginRequest); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	loginRequest.Email = utils.TrimAndConvertToLowerCase(loginRequest.Email)
 	loginRequest.Password = strings.TrimSpace(loginRequest.Password)
 
-	user, role, err := uc.userService.LoginUser(c.Request.Context(), dto.LoginDTO{
+	user, role, err := uc.userService.LoginUser(ctx.Request.Context(), dto.LoginDTO{
 		Email:    loginRequest.Email,
 		Password: loginRequest.Password,
 		Profile:  loginRequest.Profile,
 	})
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 			return
 		}
 		if errors.Is(err, service.ErrInvalidProfile) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid profile"})
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid profile"})
 			return
 		}
 		log.Printf("Login error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to login"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to login"})
 		return
 	}
 
 	token, err := middleware.GenerateToken(user.ID, role)
 	if err != nil {
 		log.Printf("Token generation failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
 	}
 
 	user.Password = ""
 
-	c.JSON(http.StatusOK, gin.H{
+	ctx.JSON(http.StatusOK, gin.H{
 		"token": token,
 		"user": gin.H{
 			"id":        user.ID,
@@ -142,12 +142,12 @@ func (uc *UserController) Login(c *gin.Context) {
 	})
 }
 
-func (uc *UserController) UpdateProfile(c *gin.Context) {
-	userID := c.GetUint("userID") // set by JWTAuthMiddleware
+func (uc *UserController) UpdateProfile(ctx *gin.Context) {
+	userID := ctx.GetUint("userID") // set by JWTAuthMiddleware
 
 	var updateProfileRequest InputRequest.UpdateProfileRequest
-	if err := c.ShouldBindJSON(&updateProfileRequest); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := ctx.ShouldBindJSON(&updateProfileRequest); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -164,7 +164,7 @@ func (uc *UserController) UpdateProfile(c *gin.Context) {
 	updateProfileRequest.Country = strings.TrimSpace(updateProfileRequest.Country)
 
 	user, err := uc.userService.UpdateUser(
-		c.Request.Context(),
+		ctx.Request.Context(),
 		userID,
 		dto.UpdateUserDTO{
 			FirstName:   updateProfileRequest.FirstName,
@@ -182,23 +182,23 @@ func (uc *UserController) UpdateProfile(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrNoFieldsToUpdate):
-			c.JSON(http.StatusBadRequest, gin.H{"error": "No valid fields to update"})
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "No valid fields to update"})
 			return
 		case errors.Is(err, service.ErrPasswordFieldsInvalid),
 			errors.Is(err, service.ErrPasswordTooShort),
 			errors.Is(err, service.ErrOldPasswordIncorrect):
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		default:
 			log.Printf("UpdateProfile error: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
 			return
 		}
 	}
 
 	user.Password = ""
 
-	c.JSON(http.StatusOK, gin.H{
+	ctx.JSON(http.StatusOK, gin.H{
 		"message":   "Profile updated successfully",
 		"id":        user.ID,
 		"email":     user.Email,
@@ -207,8 +207,8 @@ func (uc *UserController) UpdateProfile(c *gin.Context) {
 	})
 }
 
-func (uc *UserController) Logout(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
+func (uc *UserController) Logout(ctx *gin.Context) {
+	ctx.JSON(http.StatusOK, gin.H{
 		"message": "Logged out successfully. Please remove token on client side.",
 	})
 }
