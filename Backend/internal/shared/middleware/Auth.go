@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -79,7 +80,10 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 
 		// Parse and validate token
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			return config.GetConfig().Server.JwtSecret, nil
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return []byte(config.GetConfig().Server.JwtSecret), nil
 		})
 
 		if err != nil || !token.Valid {
@@ -118,14 +122,14 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 
 // GenerateToken - Creates a new JWT token with user ID and role
 func GenerateToken(userID uint, role models.UserRoles) (string, error) {
+	secret := []byte(config.GetConfig().Server.JwtSecret)
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": userID,
 		"role":    string(role),
 		"exp":     time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days
 		"iat":     time.Now().Unix(),
 	})
-
-	return token.SignedString(config.GetConfig().Server.JwtSecret)
+	return token.SignedString(secret)
 }
 
 // RequireAdmin - Allows only users with Admins role.

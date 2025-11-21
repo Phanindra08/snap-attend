@@ -6,6 +6,7 @@ const (
 	ENVIRONMENT_VARIABLE = "SNAP_ATTEND_ENV"
 	CONFIG_NAME          = "config"
 	CONFIG_TYPE          = "yaml"
+	DEV_ENVIRONMENT      = "dev"
 )
 
 const (
@@ -33,4 +34,8 @@ const (
 
 const (
 	SQL_CONNECTION_ERROR = "failed to get database instance"
+)
+
+const (
+	DEFAULT_COUNTRY = "USA"
 )
