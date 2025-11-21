@@ -1,0 +1,38 @@
+# ==============================
+# Air configuration (Live Reload)
+# ==============================
+
+# Command to build the Go project
+cmd = "go build -o ./tmp/main.exe ."
+
+# Binary that Air will run after building
+bin = "./tmp/main.exe"
+
+# Watch the whole backend folder
+watch_dir = "."
+
+# File extensions to watch for reload
+include_ext = ["go", "yaml", "yml", "env"]
+
+# Exclude folders from watching
+exclude_dir = [
+  "tmp",
+  "frontend",
+  "docs",
+  "uploads",
+  "node_modules"
+]
+
+# Delay to avoid rapid rebuilds during save
+delay = "500ms"
+
+[log]
+time = true
+
+[build]
+cmd = "go build -o ./tmp/main.exe ."
+bin = "./tmp/main.exe"
+
+# Run the compiled binary
+[dev]
+cmd = "./tmp/main.exe"
