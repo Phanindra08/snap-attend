@@ -1,0 +1,65 @@
+package repository
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/phanindra08/snap-attend/internal/shared/models"
+	"gorm.io/gorm"
+)
+
+var (
+	ErrCourseNotFound = errors.New("course not found")
+)
+
+type CourseRepository interface {
+	CreateCourse(ctx context.Context, course *models.Course) error
+	GetCourseByID(ctx context.Context, id uint) (*models.Course, error)
+	GetCourseByName(ctx context.Context, name string) (*models.Course, error)
+	UpdateCourse(ctx context.Context, course *models.Course) error
+}
+
+type courseRepository struct {
+	db *gorm.DB
+}
+
+func (userRepo *courseRepository) CreateCourse(ctx context.Context, course *models.Course) error {
+	if err := userRepo.db.WithContext(ctx).Create(course).Error; err != nil {
+		return fmt.Errorf("can't save the course: %w", err)
+	}
+	return nil
+}
+
+func (userRepo *courseRepository) GetCourseByID(ctx context.Context, id uint) (*models.Course, error) {
+	var course models.Course
+	if err := userRepo.db.WithContext(ctx).First(&course, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrCourseNotFound
+		}
+		return nil, fmt.Errorf("can't find the course: %w", err)
+	}
+	return &course, nil
+}
+
+func (userRepo *courseRepository) GetCourseByName(ctx context.Context, name string) (*models.Course, error) {
+	var course models.Course
+	if err := userRepo.db.WithContext(ctx).Where("course_name = ?", name).First(&course).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrCourseNotFound
+		}
+		return nil, fmt.Errorf("can't find the course by name: %w", err)
+	}
+	return &course, nil
+}
+
+func (userRepo *courseRepository) UpdateCourse(ctx context.Context, course *models.Course) error {
+	if err := userRepo.db.WithContext(ctx).Save(course).Error; err != nil {
+		return fmt.Errorf("can't update the course: %w", err)
+	}
+	return nil
+}
+
+func NewCourseRepository(db *gorm.DB) CourseRepository {
+	return &courseRepository{db: db}
+}
