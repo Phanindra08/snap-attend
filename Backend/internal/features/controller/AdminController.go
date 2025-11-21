@@ -338,7 +338,7 @@ func (ac *AdminController) UpdateCourse(ctx *gin.Context) {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Course already exists"})
 			return
 		}
-		log.Printf("Admin update course error: %v", err)
+		log.Printf("Error while updating course by admin: %v", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update course"})
 		return
 	}
