@@ -26,15 +26,20 @@ func GetControllers() *Controller {
 		// Create all the repositories
 		userRepo := repository.NewUserRepository(db)
 		courseRepo := repository.NewCourseRepository(db)
+		sectionRepo := repository.NewSectionRepository(db)
+		enrollmentRepo := repository.NewEnrollmentRepository(db)
 
 		// Create all the services
 		userService := service.NewUserService(userRepo)
 		courseService := service.NewCourseService(courseRepo)
+		sectionService := service.NewSectionService(sectionRepo)
+		enrollmentService := service.NewEnrollmentService(enrollmentRepo, sectionRepo)
 
 		// Create all the controllers
 		controllerInstance = &Controller{
-			User:  NewUserController(userService),
-			Admin: NewAdminController(userService, userRepo, courseService),
+			User: NewUserController(userService),
+			Admin: NewAdminController(userService, userRepo, courseService,
+				sectionService, enrollmentService),
 		}
 	})
 	return controllerInstance
