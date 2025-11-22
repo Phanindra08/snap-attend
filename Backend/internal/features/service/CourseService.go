@@ -19,6 +19,7 @@ type CourseService interface {
 	GetCourseByID(ctx context.Context, id uint) (*models.Course, error)
 	UpdateCourse(ctx context.Context, id uint, courseName string) (*models.Course, error)
 	DeleteCourse(ctx context.Context, id uint) error
+	SearchCoursesByName(ctx context.Context, name string) ([]models.Course, error)
 }
 
 type courseService struct {
@@ -91,6 +92,14 @@ func (courseService *courseService) DeleteCourse(ctx context.Context, id uint) e
 		return err
 	}
 	return nil
+}
+
+func (courseService *courseService) SearchCoursesByName(ctx context.Context, name string) ([]models.Course, error) {
+	trimmedCourseName := strings.TrimSpace(name)
+	if utils.IsEmpty(trimmedCourseName) {
+		return nil, errors.New("course name cannot be empty")
+	}
+	return courseService.courseRepo.SearchCoursesByName(ctx, trimmedCourseName)
 }
 
 func NewCourseService(courseRepo repository.CourseRepository) CourseService {

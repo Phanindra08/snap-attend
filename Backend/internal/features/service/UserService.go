@@ -34,7 +34,8 @@ type userService struct {
 }
 
 func (userService *userService) RegisterUser(ctx context.Context, signUpDTO dto.SignupDTO) (*models.User, error) {
-	if signUpDTO.Profile != models.Student && signUpDTO.Profile != models.Professor {
+	if signUpDTO.Profile != models.Student && signUpDTO.Profile != models.Professor &&
+		signUpDTO.Profile != models.Admin {
 		return nil, ErrInvalidProfile
 	}
 
