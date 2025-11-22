@@ -19,6 +19,7 @@ type CourseRepository interface {
 	GetCourseByName(ctx context.Context, name string) (*models.Course, error)
 	UpdateCourse(ctx context.Context, course *models.Course) error
 	DeleteCourse(ctx context.Context, id uint) error
+	SearchCoursesByName(ctx context.Context, name string) ([]models.Course, error)
 }
 
 type courseRepository struct {
@@ -70,6 +71,19 @@ func (userRepo *courseRepository) DeleteCourse(ctx context.Context, id uint) err
 		return ErrCourseNotFound
 	}
 	return nil
+}
+
+func (userRepo *courseRepository) SearchCoursesByName(ctx context.Context, name string) ([]models.Course, error) {
+	var courses []models.Course
+	pattern := "%" + name + "%"
+
+	if err := userRepo.db.WithContext(ctx).
+		Where("course_name ILIKE ?", pattern).
+		Find(&courses).Error; err != nil {
+		return nil, fmt.Errorf("can't search courses: %w", err)
+	}
+
+	return courses, nil
 }
 
 func NewCourseRepository(db *gorm.DB) CourseRepository {

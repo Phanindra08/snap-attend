@@ -25,6 +25,7 @@ type UserRepository interface {
 	FindByEmailAndRole(ctx context.Context, email string, role models.UserRoles) (*models.User, error)
 	FindByName(ctx context.Context, firstName string, lastName string) ([]models.User, error)
 	UpdateUser(ctx context.Context, user *models.User) error
+	SearchUsersByNameAndRole(ctx context.Context, name string, role models.UserRoles) ([]models.User, error)
 }
 
 type userRepository struct {
@@ -123,6 +124,21 @@ func (userRepo *userRepository) UpdateUser(ctx context.Context, user *models.Use
 		return fmt.Errorf("can't update the user: %w", err)
 	}
 	return nil
+}
+
+func (userRepo *userRepository) SearchUsersByNameAndRole(ctx context.Context, name string, role models.UserRoles) ([]models.User, error) {
+	var users []models.User
+	pattern := "%" + name + "%"
+
+	err := userRepo.db.WithContext(ctx).
+		Joins("UserProfile").
+		Preload("UserProfile").
+		Where("(users.first_name ILIKE ? OR users.last_name ILIKE ?) AND \"UserProfile\".role = ?", pattern, pattern, role).
+		Find(&users).Error
+	if err != nil {
+		return nil, fmt.Errorf("can't search users: %w", err)
+	}
+	return users, nil
 }
 
 func NewUserRepository(db *gorm.DB) UserRepository {
