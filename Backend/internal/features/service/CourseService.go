@@ -1,13 +1,13 @@
 package service
 
 import (
-"context"
-"errors"
-"strings"
+	"context"
+	"errors"
+	"strings"
 
-"github.com/phanindra08/snap-attend/internal/features/repository"
-"github.com/phanindra08/snap-attend/internal/shared/models"
-"github.com/phanindra08/snap-attend/internal/shared/utils"
+	"github.com/phanindra08/snap-attend/internal/features/repository"
+	"github.com/phanindra08/snap-attend/internal/shared/models"
+	"github.com/phanindra08/snap-attend/internal/shared/utils"
 )
 
 var (
@@ -18,6 +18,7 @@ type CourseService interface {
 	CreateCourse(ctx context.Context, courseName string) (*models.Course, error)
 	GetCourseByID(ctx context.Context, id uint) (*models.Course, error)
 	UpdateCourse(ctx context.Context, id uint, courseName string) (*models.Course, error)
+	DeleteCourse(ctx context.Context, id uint) error
 }
 
 type courseService struct {
@@ -83,6 +84,13 @@ func (courseService *courseService) UpdateCourse(ctx context.Context, id uint, c
 	}
 
 	return course, nil
+}
+
+func (courseService *courseService) DeleteCourse(ctx context.Context, id uint) error {
+	if err := courseService.courseRepo.DeleteCourse(ctx, id); err != nil {
+		return err
+	}
+	return nil
 }
 
 func NewCourseService(courseRepo repository.CourseRepository) CourseService {

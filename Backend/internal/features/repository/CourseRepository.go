@@ -18,6 +18,7 @@ type CourseRepository interface {
 	GetCourseByID(ctx context.Context, id uint) (*models.Course, error)
 	GetCourseByName(ctx context.Context, name string) (*models.Course, error)
 	UpdateCourse(ctx context.Context, course *models.Course) error
+	DeleteCourse(ctx context.Context, id uint) error
 }
 
 type courseRepository struct {
@@ -56,6 +57,17 @@ func (userRepo *courseRepository) GetCourseByName(ctx context.Context, name stri
 func (userRepo *courseRepository) UpdateCourse(ctx context.Context, course *models.Course) error {
 	if err := userRepo.db.WithContext(ctx).Save(course).Error; err != nil {
 		return fmt.Errorf("can't update the course: %w", err)
+	}
+	return nil
+}
+
+func (userRepo *courseRepository) DeleteCourse(ctx context.Context, id uint) error {
+	result := userRepo.db.WithContext(ctx).Delete(&models.Course{}, id)
+	if result.Error != nil {
+		return fmt.Errorf("can't delete the course: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return ErrCourseNotFound
 	}
 	return nil
 }

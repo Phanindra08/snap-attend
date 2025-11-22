@@ -9,7 +9,8 @@ import (
 )
 
 type Controller struct {
-	User *UserController
+	User  *UserController
+	Admin *AdminController
 }
 
 var (
@@ -24,13 +25,16 @@ func GetControllers() *Controller {
 
 		// Create all the repositories
 		userRepo := repository.NewUserRepository(db)
+		courseRepo := repository.NewCourseRepository(db)
 
 		// Create all the services
 		userService := service.NewUserService(userRepo)
+		courseService := service.NewCourseService(courseRepo)
 
 		// Create all the controllers
 		controllerInstance = &Controller{
-			User: NewUserController(userService),
+			User:  NewUserController(userService),
+			Admin: NewAdminController(userService, userRepo, courseService),
 		}
 	})
 	return controllerInstance

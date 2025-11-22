@@ -106,8 +106,25 @@ func registerRoutes(router *gin.Engine, controller *controller.Controller) {
 			user.PUT("/update-profile", controller.User.UpdateProfile)
 			user.POST("/logout", controller.User.Logout)
 		}
-		//staff := auth.Group("/staff")
-		//staff.Use(middleware.RequireRoles(models.Admin, models.Professor))
-		//staff.GET("/reports", controllers.StaffReports)
+
+		admin := api.Group("/admin")
+		admin.Use(middleware.JWTAuthMiddleware(), middleware.RequireAdmin())
+		{
+			// Students
+			admin.POST("/students", controller.Admin.CreateStudent)
+			admin.GET("/students/:id", controller.Admin.GetStudentByID)
+			admin.PUT("/students/:id", controller.Admin.UpdateStudent)
+
+			// Professors
+			admin.POST("/professors", controller.Admin.CreateProfessor)
+			admin.GET("/professors/:id", controller.Admin.GetProfessorByID)
+			admin.PUT("/professors/:id", controller.Admin.UpdateProfessor)
+
+			// Courses
+			admin.POST("/courses", controller.Admin.CreateCourse)
+			admin.GET("/courses/:id", controller.Admin.GetCourseByID)
+			admin.PUT("/courses/:id", controller.Admin.UpdateCourse)
+			admin.DELETE("/courses/:id", controller.Admin.DeleteCourse)
+		}
 	}
 }

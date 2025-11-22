@@ -350,6 +350,28 @@ func (ac *AdminController) UpdateCourse(ctx *gin.Context) {
 	})
 }
 
+func (ac *AdminController) DeleteCourse(ctx *gin.Context) {
+	id, err := parseIDParam(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID parameter"})
+		return
+	}
+
+	if err := ac.courseService.DeleteCourse(ctx.Request.Context(), id); err != nil {
+		if errors.Is(err, repository.ErrCourseNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Course not found"})
+			return
+		}
+		log.Printf("Error while deleting the course by admin: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete course"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "Course deleted successfully",
+	})
+}
+
 func parseIDParam(ctx *gin.Context) (uint, error) {
 	idParam := ctx.Param("id")
 	id64, err := strconv.ParseUint(idParam, 10, 64)
