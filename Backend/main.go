@@ -120,11 +120,18 @@ func registerRoutes(router *gin.Engine, controller *controller.Controller) {
 			admin.GET("/professors/:id", controller.Admin.GetProfessorByID)
 			admin.PUT("/professors/:id", controller.Admin.UpdateProfessor)
 
+			// Admins
+			admin.POST("/admins", controller.Admin.CreateAdmin)
+
 			// Courses
 			admin.POST("/courses", controller.Admin.CreateCourse)
 			admin.GET("/courses/:id", controller.Admin.GetCourseByID)
 			admin.PUT("/courses/:id", controller.Admin.UpdateCourse)
 			admin.DELETE("/courses/:id", controller.Admin.DeleteCourse)
+
+			admin.POST("/enrollments", controller.Admin.EnrollStudentInSection)
+			admin.POST("/sections/assign-professor", controller.Admin.AssignProfessorToSection)
+			admin.GET("/search", controller.Admin.Search)
 		}
 	}
 }

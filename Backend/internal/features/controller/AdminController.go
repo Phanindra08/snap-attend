@@ -17,9 +17,11 @@ import (
 )
 
 type AdminController struct {
-	userService   service.UserService
-	userRepo      repository.UserRepository
-	courseService service.CourseService
+	userService       service.UserService
+	userRepo          repository.UserRepository
+	courseService     service.CourseService
+	sectionService    service.SectionService
+	enrollmentService service.EnrollmentService
 }
 
 func (ac *AdminController) getUserEnsuringRole(context *gin.Context, userID uint, expectedRole models.UserRoles) (*models.User, error) {
@@ -72,6 +74,10 @@ func (ac *AdminController) CreateStudent(ctx *gin.Context) {
 
 func (ac *AdminController) CreateProfessor(ctx *gin.Context) {
 	ac.createUserWithRole(ctx, models.Professor, "Professor created successfully")
+}
+
+func (ac *AdminController) CreateAdmin(ctx *gin.Context) {
+	ac.createUserWithRole(ctx, models.Admin, "Admin created successfully")
 }
 
 func (ac *AdminController) createUserWithRole(ctx *gin.Context, role models.UserRoles, successMessage string) {
@@ -372,6 +378,195 @@ func (ac *AdminController) DeleteCourse(ctx *gin.Context) {
 	})
 }
 
+func (ac *AdminController) EnrollStudentInSection(ctx *gin.Context) {
+	var adminEnrollStudentRequest InputRequest.AdminEnrollStudentRequest
+	if err := ctx.ShouldBindJSON(&adminEnrollStudentRequest); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	_, err := ac.getUserEnsuringRole(ctx, adminEnrollStudentRequest.StudentId, models.Student)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Student not found"})
+			return
+		}
+		if errors.Is(err, repository.ErrUserProfileNotFound) || errors.Is(err, service.ErrProfileNotConfigured) {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "User profile not configured. Please contact administrator."})
+			return
+		}
+		if errors.Is(err, service.ErrInvalidProfile) {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "User is not a Student"})
+			return
+		}
+		log.Printf("Error verifying student before enrollment: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify student"})
+		return
+	}
+
+	enrollment, err := ac.enrollmentService.EnrollStudentInSection(ctx.Request.Context(), adminEnrollStudentRequest.StudentId, adminEnrollStudentRequest.SectionId)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrSectionNotFound):
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Course section not found"})
+			return
+		case errors.Is(err, service.ErrMaxCoursesPerSemester):
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Student has reached maximum number of courses for this semester"})
+			return
+		case errors.Is(err, service.ErrAlreadyEnrolledInCourse):
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Student is already enrolled in this course for the semester"})
+			return
+		case errors.Is(err, service.ErrStudentScheduleConflict):
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Student has a schedule conflict with another course"})
+			return
+		case errors.Is(err, service.ErrSectionFull):
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Course section is full"})
+			return
+		default:
+			log.Printf("Admin enroll student error: %v", err)
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to enroll student in course section"})
+			return
+		}
+	}
+
+	ctx.JSON(http.StatusCreated, gin.H{
+		"message": "Student enrolled successfully",
+		"enrollment": gin.H{
+			"id":        enrollment.ID,
+			"studentId": enrollment.StudentId,
+			"sectionId": enrollment.SectionId,
+		},
+	})
+}
+
+func (ac *AdminController) AssignProfessorToSection(ctx *gin.Context) {
+	var assignProfessorRequest InputRequest.AdminAssignProfessorRequest
+	if err := ctx.ShouldBindJSON(&assignProfessorRequest); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	_, err := ac.getUserEnsuringRole(ctx, assignProfessorRequest.ProfessorId, models.Professor)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Professor not found"})
+			return
+		}
+		if errors.Is(err, repository.ErrUserProfileNotFound) || errors.Is(err, service.ErrProfileNotConfigured) {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "User profile not configured. Please contact administrator."})
+			return
+		}
+		if errors.Is(err, service.ErrInvalidProfile) {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "User is not a Professor"})
+			return
+		}
+		log.Printf("Error verifying professor before assignment: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify professor"})
+		return
+	}
+
+	section, err := ac.sectionService.AssignProfessorToSection(ctx.Request.Context(), assignProfessorRequest.SectionId, assignProfessorRequest.ProfessorId)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrSectionNotFound):
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Course section not found"})
+			return
+		case errors.Is(err, service.ErrProfessorScheduleConflict):
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Professor has a schedule conflict with another section"})
+			return
+		default:
+			log.Printf("Admin assign professor error: %v", err)
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign professor to course section"})
+			return
+		}
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "Professor assigned successfully",
+		"section": gin.H{
+			"id":            section.ID,
+			"courseId":      section.CourseId,
+			"professorId":   section.ProfessorId,
+			"sectionNumber": section.SectionNumber,
+		},
+	})
+}
+
+func (ac *AdminController) Search(ctx *gin.Context) {
+	courseName := strings.TrimSpace(ctx.Query("courseName"))
+	studentName := strings.TrimSpace(ctx.Query("studentName"))
+	professorName := strings.TrimSpace(ctx.Query("professorName"))
+
+	if utils.IsEmpty(courseName) && utils.IsEmpty(studentName) && utils.IsEmpty(professorName) {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "At least one search parameter must be provided"})
+		return
+	}
+
+	response := gin.H{}
+
+	if !utils.IsEmpty(courseName) {
+		courses, err := ac.courseService.SearchCoursesByName(ctx.Request.Context(), courseName)
+		if err != nil {
+			log.Printf("Error while searching courses by admin: %v", err)
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search courses"})
+			return
+		}
+
+		var courseResults []gin.H
+		for _, course := range courses {
+			courseResults = append(courseResults, gin.H{
+				"id":         course.ID,
+				"courseName": course.CourseName,
+			})
+		}
+		response["courses"] = courseResults
+	}
+
+	if !utils.IsEmpty(studentName) {
+		students, err := ac.userRepo.SearchUsersByNameAndRole(ctx.Request.Context(), studentName, models.Student)
+		if err != nil {
+			log.Printf("Error while searching students by admin: %v", err)
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search students"})
+			return
+		}
+
+		var studentResults []gin.H
+		for _, student := range students {
+			studentResults = append(studentResults, gin.H{
+				"id":        student.ID,
+				"email":     student.Email,
+				"firstName": student.FirstName,
+				"lastName":  student.LastName,
+				"profile":   models.Student,
+			})
+		}
+		response["students"] = studentResults
+	}
+
+	if !utils.IsEmpty(professorName) {
+		professors, err := ac.userRepo.SearchUsersByNameAndRole(ctx.Request.Context(), professorName, models.Professor)
+		if err != nil {
+			log.Printf("Error while searching professors by admin: %v", err)
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search professors"})
+			return
+		}
+
+		var professorResults []gin.H
+		for _, professor := range professors {
+			professorResults = append(professorResults, gin.H{
+				"id":        professor.ID,
+				"email":     professor.Email,
+				"firstName": professor.FirstName,
+				"lastName":  professor.LastName,
+				"profile":   models.Professor,
+			})
+		}
+		response["professors"] = professorResults
+	}
+
+	ctx.JSON(http.StatusOK, response)
+}
+
 func parseIDParam(ctx *gin.Context) (uint, error) {
 	idParam := ctx.Param("id")
 	id64, err := strconv.ParseUint(idParam, 10, 64)
@@ -385,10 +580,14 @@ func NewAdminController(
 	userService service.UserService,
 	userRepo repository.UserRepository,
 	courseService service.CourseService,
+	sectionService service.SectionService,
+	enrollmentService service.EnrollmentService,
 ) *AdminController {
 	return &AdminController{
-		userService:   userService,
-		userRepo:      userRepo,
-		courseService: courseService,
+		userService:       userService,
+		userRepo:          userRepo,
+		courseService:     courseService,
+		sectionService:    sectionService,
+		enrollmentService: enrollmentService,
 	}
 }
