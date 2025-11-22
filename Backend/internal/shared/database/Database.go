@@ -117,6 +117,11 @@ func autoMigrate() {
 		log.Fatalf("Failed to migrate the table SectionSchedule: %v", err)
 	}
 
+	err = db.AutoMigrate(&models.StudentSectionEnrollment{})
+	if err != nil {
+		log.Fatalf("Failed to migrate the table StudentSectionEnrollment: %v", err)
+	}
+
 	log.Println("Database migration completed successfully")
 }
 
