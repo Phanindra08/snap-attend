@@ -6,5 +6,7 @@ type Room struct {
 	BuildingName   string          `gorm:"type:varchar(50);not null;uniqueIndex:idx_room_unique"`
 	Capacity       int             `gorm:"not null"`
 	Address        string          `gorm:"type:varchar(255);not null"`
+	Latitude       float64         `gorm:"not null"`
+	Longitude      float64         `gorm:"not null"`
 	CourseSections []CourseSection `gorm:"foreignKey:RoomId"`
 }
