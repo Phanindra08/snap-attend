@@ -9,7 +9,6 @@ import (
 	"github.com/phanindra08/snap-attend/internal/features/repository"
 	"github.com/phanindra08/snap-attend/internal/shared/models"
 	"github.com/phanindra08/snap-attend/internal/shared/utils"
-	"gorm.io/datatypes"
 )
 
 var (

@@ -107,6 +107,14 @@ func registerRoutes(router *gin.Engine, controller *controller.Controller) {
 			user.POST("/logout", controller.User.Logout)
 		}
 
+		student := api.Group("/student")
+		student.Use(middleware.JWTAuthMiddleware(), middleware.RequireStudent())
+		{
+			student.POST("/attendance", controller.Student.SubmitAttendance)
+			student.GET("/attendance/summary", controller.Student.GetAttendanceSummary)
+			student.GET("/attendance/history", controller.Student.GetAttendanceHistory)
+		}
+
 		admin := api.Group("/admin")
 		admin.Use(middleware.JWTAuthMiddleware(), middleware.RequireAdmin())
 		{

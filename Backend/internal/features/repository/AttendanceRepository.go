@@ -20,6 +20,7 @@ type AttendanceRepository interface {
 	GetStudentAttendanceHistory(ctx context.Context, studentId uint, from *time.Time, to *time.Time) ([]models.StudentAttendance, error)
 	CountAttendanceQrBySectionUntilNow(ctx context.Context, sectionId uint) (int64, error)
 	GetAttendanceQrWithSectionAndRoom(ctx context.Context, qrId uint) (*models.AttendanceQr, error)
+	GetStudentAttendanceByStudentAndQr(ctx context.Context, studentId uint, qrId uint) (*models.StudentAttendance, error)
 }
 
 type attendanceRepository struct {
@@ -87,6 +88,8 @@ func (attendanceRepo *attendanceRepository) GetAttendanceQrWithSectionAndRoom(ct
 	err := attendanceRepo.db.WithContext(ctx).
 		Preload("CourseSection").
 		Preload("CourseSection.Room").
+		Preload("CourseSection.Semester").
+		Preload("CourseSection.SectionSchedules").
 		First(&attendanceQr, qrId).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -95,6 +98,20 @@ func (attendanceRepo *attendanceRepository) GetAttendanceQrWithSectionAndRoom(ct
 		return nil, fmt.Errorf("can't find attendance the QR record: %w", err)
 	}
 	return &attendanceQr, nil
+}
+
+func (attendanceRepo *attendanceRepository) GetStudentAttendanceByStudentAndQr(ctx context.Context, studentId uint, qrId uint) (*models.StudentAttendance, error) {
+	var attendance models.StudentAttendance
+	err := attendanceRepo.db.WithContext(ctx).
+		Where("student_id = ? AND qr_id = ?", studentId, qrId).
+		First(&attendance).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("can't fetch student attendance for the qr record: %w", err)
+	}
+	return &attendance, nil
 }
 
 func NewAttendanceRepository(db *gorm.DB) AttendanceRepository {
