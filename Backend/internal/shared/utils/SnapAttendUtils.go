@@ -4,6 +4,8 @@ import (
 	"math"
 	"strings"
 	"time"
+
+	"github.com/phanindra08/snap-attend/internal/shared/models"
 )
 
 // TrimAndConvertToLowerCase - Helps in trimming whitespaces and converting any string to lowercase
@@ -40,4 +42,51 @@ func CalculateDistanceInMeters(lat1 float64, lon1 float64, lat2 float64, lon2 fl
 	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
 
 	return earthRadius * c
+}
+
+func IsValidLatAndLon(lat float64, lon float64) bool {
+	if lat < -90 || lat > 90 {
+		return false
+	} else if lon < -180 || lon > 180 {
+		return false
+	} else if lat == 0 && lon == 0 {
+		return false
+	}
+	return true
+}
+
+func IsClassInSessionNow(now time.Time, sectionSchedules []models.SectionSchedule) bool {
+	if len(sectionSchedules) == 0 {
+		return false
+	}
+
+	weekday := now.Weekday().String()
+	timeInStringFormat := now.Format("15:04:05")
+	nowTime, err := time.Parse("15:04:05", timeInStringFormat)
+	if err != nil {
+		return false
+	}
+
+	for _, schedule := range sectionSchedules {
+		if string(schedule.DaysOfTheClass) != weekday {
+			continue
+		}
+
+		startStr := schedule.StartTime.String()
+		endStr := schedule.EndTime.String()
+
+		start, err := time.Parse("15:04:05", startStr)
+		if err != nil {
+			continue
+		}
+		end, err := time.Parse("15:04:05", endStr)
+		if err != nil {
+			continue
+		}
+
+		if !nowTime.Before(start) && !nowTime.After(end) {
+			return true
+		}
+	}
+	return false
 }

@@ -5,14 +5,23 @@ import (
 	"errors"
 	"time"
 
+	"github.com/phanindra08/snap-attend/internal/features/dto"
 	"github.com/phanindra08/snap-attend/internal/features/repository"
 	"github.com/phanindra08/snap-attend/internal/shared/models"
 	"github.com/phanindra08/snap-attend/internal/shared/utils"
+	"gorm.io/datatypes"
 )
 
 var (
 	ErrInvalidAttendanceLocation   = errors.New("student is not at the class location")
 	ErrStudentNotEnrolledInSection = errors.New("student is not enrolled in this course section")
+	ErrAttendanceQrInactive        = errors.New("attendance QR is inactive")
+	ErrAttendanceQrExpired         = errors.New("attendance QR is expired")
+	ErrAttendanceQrNotYetValid     = errors.New("attendance QR is not yet valid")
+	ErrAttendanceAlreadySubmitted  = errors.New("attendance already submitted for this QR")
+	ErrClassNotInSession           = errors.New("class is not in session at this time")
+	ErrSectionNotActive            = errors.New("course section / semester is not active")
+	ErrInvalidLocationData         = errors.New("invalid or missing location data")
 )
 
 type AttendanceSummary struct {
@@ -26,7 +35,7 @@ type AttendanceSummary struct {
 }
 
 type AttendanceService interface {
-	SubmitAttendance(ctx context.Context, studentId uint, qrId uint, latitude float64, longitude float64, question string, answer string) (*models.StudentAttendance, error)
+	SubmitAttendance(ctx context.Context, studentID uint, attendanceDTO dto.StudentSubmitAttendanceDTO) (*models.StudentAttendance, error)
 	GetAttendanceSummary(ctx context.Context, studentId uint, courseId uint) ([]AttendanceSummary, error)
 	GetAttendanceHistory(ctx context.Context, studentId uint, from *time.Time, to *time.Time) ([]models.StudentAttendance, error)
 }
@@ -36,8 +45,8 @@ type attendanceService struct {
 	enrollRepo     repository.EnrollmentRepository
 }
 
-func (attendanceService *attendanceService) SubmitAttendance(ctx context.Context, studentId uint, qrId uint, latitude float64, longitude float64, question string, answer string) (*models.StudentAttendance, error) {
-	qr, err := attendanceService.attendanceRepo.GetAttendanceQrWithSectionAndRoom(ctx, qrId)
+func (attendanceService *attendanceService) SubmitAttendance(ctx context.Context, studentID uint, attendanceDTO dto.StudentSubmitAttendanceDTO) (*models.StudentAttendance, error) {
+	qr, err := attendanceService.attendanceRepo.GetAttendanceQrWithSectionAndRoom(ctx, attendanceDTO.QrId)
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +54,43 @@ func (attendanceService *attendanceService) SubmitAttendance(ctx context.Context
 	section := qr.CourseSection
 	room := section.Room
 
-	// Check if student is enrolled in the section
-	enrollment, err := attendanceService.enrollRepo.GetEnrollmentByStudentAndSection(ctx, studentId, section.ID)
+	now := time.Now().UTC()
+
+	// Check that QR is active and valid (based on GeneratedAt and ExpiresAt)
+	if !qr.IsActive {
+		return nil, ErrAttendanceQrInactive
+	}
+	if now.Before(qr.GeneratedAt) {
+		return nil, ErrAttendanceQrNotYetValid
+	}
+	if now.After(qr.ExpiresAt) {
+		return nil, ErrAttendanceQrExpired
+	}
+
+	// 2) Check that the section / semester is active (based on Semester dates)
+	semester := section.Semester
+	startDate := semester.StartDate
+	endDate := semester.EndDate
+
+	// Converting to time.Time
+	start := time.Time(startDate)
+	end := time.Time(endDate)
+
+	// Normalize to day boundaries (inclusive)
+	start = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+	end = time.Date(end.Year(), end.Month(), end.Day(), 23, 59, 59, 0, time.UTC)
+
+	if now.Before(start) || now.After(end) {
+		return nil, ErrSectionNotActive
+	}
+
+	// Check class is aligned with SectionSchedules + day of week + time
+	if !utils.IsClassInSessionNow(now, section.SectionSchedules) {
+		return nil, ErrClassNotInSession
+	}
+
+	// Checking if student is enrolled in the section
+	enrollment, err := attendanceService.enrollRepo.GetEnrollmentByStudentAndSection(ctx, studentID, section.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -54,10 +98,24 @@ func (attendanceService *attendanceService) SubmitAttendance(ctx context.Context
 		return nil, ErrStudentNotEnrolledInSection
 	}
 
+	// Check if attendance was already submitted for this QR by the student
+	existingAttendance, err := attendanceService.attendanceRepo.GetStudentAttendanceByStudentAndQr(ctx, studentID, qr.ID)
+	if err != nil {
+		return nil, err
+	}
+	if existingAttendance != nil {
+		return nil, ErrAttendanceAlreadySubmitted
+	}
+
+	// Validating the student location
+	if !utils.IsValidLatAndLon(attendanceDTO.Latitude, attendanceDTO.Longitude) {
+		return nil, ErrInvalidLocationData
+	}
+
 	// Validate the student location against the room coordinates
 	distance := utils.CalculateDistanceInMeters(
-		latitude,
-		longitude,
+		attendanceDTO.Latitude,
+		attendanceDTO.Longitude,
 		room.Latitude,
 		room.Longitude,
 	)
@@ -67,12 +125,12 @@ func (attendanceService *attendanceService) SubmitAttendance(ctx context.Context
 	}
 
 	attendance := &models.StudentAttendance{
-		StudentId:       studentId,
+		StudentId:       studentID,
 		QrId:            qr.ID,
-		AttendedAt:      time.Now().UTC(),
+		AttendedAt:      now,
 		Attended:        true,
-		StudentQuestion: question,
-		StudentAnswer:   answer,
+		StudentQuestion: attendanceDTO.Question,
+		StudentAnswer:   attendanceDTO.Answer,
 	}
 
 	if err := attendanceService.attendanceRepo.CreateStudentAttendance(ctx, attendance); err != nil {
