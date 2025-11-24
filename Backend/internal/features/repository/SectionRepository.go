@@ -18,6 +18,8 @@ type SectionRepository interface {
 	GetSectionsByProfessorAndSemester(ctx context.Context, professorId uint, semesterId uint) ([]models.CourseSection, error)
 	GetSectionsByRoomAndSemester(ctx context.Context, roomId uint, semesterId uint) ([]models.CourseSection, error)
 	UpdateSection(ctx context.Context, section *models.CourseSection) error
+	GetSectionsByProfessor(ctx context.Context, professorId uint) ([]models.CourseSection, error)
+	SearchSectionsByProfessorAndCourseName(ctx context.Context, professorId uint, name string) ([]models.CourseSection, error)
 }
 
 type sectionRepository struct {
@@ -68,6 +70,32 @@ func (sectionRepo *sectionRepository) UpdateSection(ctx context.Context, section
 		return fmt.Errorf("can't update the section: %w", err)
 	}
 	return nil
+}
+
+func (sectionRepo *sectionRepository) GetSectionsByProfessor(ctx context.Context, professorId uint) ([]models.CourseSection, error) {
+	var sections []models.CourseSection
+	err := sectionRepo.db.WithContext(ctx).
+		Where("professor_id = ?", professorId).
+		Find(&sections).Error
+	if err != nil {
+		return nil, fmt.Errorf("can't fetch sections for the professor: %w", err)
+	}
+	return sections, nil
+}
+
+func (sectionRepo *sectionRepository) SearchSectionsByProfessorAndCourseName(ctx context.Context, professorId uint, name string) ([]models.CourseSection, error) {
+	var sections []models.CourseSection
+	pattern := "%" + name + "%"
+
+	err := sectionRepo.db.WithContext(ctx).
+		Joins("JOIN courses ON courses.id = course_sections.course_id").
+		Where("course_sections.professor_id = ? AND courses.course_name ILIKE ?", professorId, pattern).
+		Preload("Course").
+		Find(&sections).Error
+	if err != nil {
+		return nil, fmt.Errorf("can't search sections for the professor: %w", err)
+	}
+	return sections, nil
 }
 
 func NewSectionRepository(db *gorm.DB) SectionRepository {

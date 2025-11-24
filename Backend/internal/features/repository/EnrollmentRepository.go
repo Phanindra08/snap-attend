@@ -14,6 +14,7 @@ type EnrollmentRepository interface {
 	GetEnrollmentByStudentAndSection(ctx context.Context, studentId uint, sectionId uint) (*models.StudentSectionEnrollment, error)
 	GetEnrollmentsByStudentAndSemester(ctx context.Context, studentId uint, semesterId uint) ([]models.StudentSectionEnrollment, error)
 	CountEnrollmentsByStudentAndSemester(ctx context.Context, studentId uint, semesterId uint) (int64, error)
+	GetEnrollmentsBySection(ctx context.Context, sectionId uint) ([]models.StudentSectionEnrollment, error)
 }
 
 type enrollmentRepository struct {
@@ -68,6 +69,18 @@ func (enrollRepo *enrollmentRepository) CountEnrollmentsByStudentAndSemester(ctx
 		return 0, fmt.Errorf("can't count enrollments: %w", err)
 	}
 	return count, nil
+}
+
+func (enrollRepo *enrollmentRepository) GetEnrollmentsBySection(ctx context.Context, sectionId uint) ([]models.StudentSectionEnrollment, error) {
+	var enrollments []models.StudentSectionEnrollment
+	err := enrollRepo.db.WithContext(ctx).
+		Preload("Student").
+		Where("section_id = ?", sectionId).
+		Find(&enrollments).Error
+	if err != nil {
+		return nil, fmt.Errorf("can't fetch enrollments by section: %w", err)
+	}
+	return enrollments, nil
 }
 
 func NewEnrollmentRepository(db *gorm.DB) EnrollmentRepository {
