@@ -39,4 +39,5 @@ const (
 const (
 	DEFAULT_COUNTRY                = "USA"
 	MAX_ATTENDANCE_DISTANCE_METERS = 50.0
+	QR_TTL_MINUTES                 = 5
 )

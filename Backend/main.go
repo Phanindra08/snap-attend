@@ -43,9 +43,9 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(middleware.CORSMiddleware())
 
-	controller := controller.GetControllers()
+	controllerInstance := controller.GetControllers()
 	// Registering routes
-	registerRoutes(router, controller)
+	registerRoutes(router, controllerInstance)
 
 	// Create HTTP server with graceful shutdown
 	server := &http.Server{
@@ -113,6 +113,17 @@ func registerRoutes(router *gin.Engine, controller *controller.Controller) {
 			student.POST("/attendance", controller.Student.SubmitAttendance)
 			student.GET("/attendance/summary", controller.Student.GetAttendanceSummary)
 			student.GET("/attendance/history", controller.Student.GetAttendanceHistory)
+		}
+
+		professor := api.Group("/professor")
+		professor.Use(middleware.JWTAuthMiddleware(), middleware.RequireProfessor())
+		{
+			professor.POST("/sections/:sectionId/attendance-qr", controller.Professor.GenerateAttendanceQr)
+			professor.GET("/sections/:sectionId/attendance/report", controller.Professor.GetDailyAttendanceReport)
+			professor.GET("/sections/:sectionId/attendance", controller.Professor.GetSectionAttendance)
+			professor.PUT("/attendance/:attendanceId", controller.Professor.UpdateAttendanceStatus)
+			professor.GET("/search", controller.Professor.Search)
+			professor.GET("/sections/:sectionId/attendance/overview", controller.Professor.GetSectionAttendanceOverview)
 		}
 
 		admin := api.Group("/admin")

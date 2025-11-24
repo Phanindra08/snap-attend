@@ -9,9 +9,10 @@ import (
 )
 
 type Controller struct {
-	User    *UserController
-	Admin   *AdminController
-	Student *StudentController
+	User      *UserController
+	Admin     *AdminController
+	Student   *StudentController
+	Professor *ProfessorController
 }
 
 var (
@@ -44,6 +45,8 @@ func GetControllers() *Controller {
 			Admin: NewAdminController(userService, userRepo, courseService,
 				sectionService, enrollmentService),
 			Student: NewStudentController(attendanceService),
+			Professor: NewProfessorController(attendanceService, sectionRepo, enrollmentRepo,
+				userRepo, attendanceRepo),
 		}
 	})
 	return controllerInstance
