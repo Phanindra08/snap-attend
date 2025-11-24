@@ -1,0 +1,12 @@
+server:
+  port: 8080
+  jwt_secret: "de3051343e5863e21ae8459d57e38fdccae9431082f0d5279b12fbc3758245c4"
+
+database:
+  host: "localhost"
+  port: 5432
+  username: "postgres"
+  password: "Phanindra08"
+  database-name: "postgres"
+  schema: "snap_attend"
+  ssl-mode: "disable"
