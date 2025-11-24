@@ -11,6 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/phanindra08/snap-attend/internal/shared/config"
 	"github.com/phanindra08/snap-attend/internal/shared/models"
+	"github.com/phanindra08/snap-attend/internal/shared/utils"
 )
 
 func RequestLogger() gin.HandlerFunc {
@@ -66,7 +67,7 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 	return func(context *gin.Context) {
 		authHeader := context.GetHeader("Authorization")
 
-		if authHeader == "" {
+		if utils.IsEmpty(authHeader) {
 			context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header missing"})
 			return
 		}

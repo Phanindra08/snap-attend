@@ -18,7 +18,7 @@ var (
 	ErrAttendanceQrExpired         = errors.New("attendance QR is expired")
 	ErrAttendanceQrNotYetValid     = errors.New("attendance QR is not yet valid")
 	ErrAttendanceAlreadySubmitted  = errors.New("attendance already submitted for this QR")
-	ErrClassNotInSession           = errors.New("class is not in session at this time")
+	ErrClassNotInSession           = errors.New("class is not in the session at this time")
 	ErrSectionNotActive            = errors.New("course section / semester is not active")
 	ErrInvalidLocationData         = errors.New("invalid or missing location data")
 )

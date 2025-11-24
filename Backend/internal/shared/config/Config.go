@@ -92,7 +92,7 @@ func loadConfiguration() {
 
 	// Retrieving the environment variable SNAP_ATTEND_ENV for figuring out the config file to be used
 	environment := os.Getenv(utils.ENVIRONMENT_VARIABLE)
-	if environment == "" {
+	if utils.IsEmpty(environment) {
 		log.Fatalf("Environment variable '%s' is not defined", utils.ENVIRONMENT_VARIABLE)
 	}
 
