@@ -35,3 +35,4 @@ build/
 
 ### Temporary Folder ###
 Backend/tmp/
+Backend/*.exe

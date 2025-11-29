@@ -22,6 +22,7 @@ type AdminController struct {
 	courseService     service.CourseService
 	sectionService    service.SectionService
 	enrollmentService service.EnrollmentService
+	roomService       service.RoomService
 }
 
 func (ac *AdminController) getUserEnsuringRole(context *gin.Context, userID uint, expectedRole models.UserRoles) (*models.User, error) {
@@ -567,6 +568,153 @@ func (ac *AdminController) Search(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, response)
 }
 
+func (ac *AdminController) CreateRoom(ctx *gin.Context) {
+	var roomRequest InputRequest.CreateRoomRequest
+	if err := ctx.ShouldBindJSON(&roomRequest); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	roomDTO := &dto.RoomDTO{
+		RoomNumber:   roomRequest.RoomNumber,
+		BuildingName: roomRequest.BuildingName,
+		Capacity:     roomRequest.Capacity,
+		Address:      roomRequest.Address,
+		Latitude:     roomRequest.Latitude,
+		Longitude:    roomRequest.Longitude,
+	}
+
+	room, err := ac.roomService.CreateRoom(ctx.Request.Context(), roomDTO)
+	if err != nil {
+		if errors.Is(err, service.ErrRoomAlreadyExists) {
+			ctx.JSON(http.StatusConflict, gin.H{"error": "Room with the same room number and building already exists in the records"})
+			return
+		}
+		if errors.Is(err, service.ErrRoomInvalidCapacity) ||
+			errors.Is(err, service.ErrRoomInvalidCoordinates) ||
+			errors.Is(err, service.ErrRoomFieldsInvalid) {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		log.Printf("Error while creating a room by Admin: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create room record"})
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, gin.H{
+		"id":           room.ID,
+		"roomNumber":   room.RoomNumber,
+		"buildingName": room.BuildingName,
+		"capacity":     room.Capacity,
+		"address":      room.Address,
+		"latitude":     room.Latitude,
+		"longitude":    room.Longitude,
+	})
+}
+
+func (ac *AdminController) GetRoomByID(ctx *gin.Context) {
+	id, err := parseIDParam(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID parameter"})
+		return
+	}
+
+	room, err := ac.roomService.GetRoomByID(ctx.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, repository.ErrRoomNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
+			return
+		}
+		log.Printf("Error while retrieving room details by Admin: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve room details"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"id":           room.ID,
+		"roomNumber":   room.RoomNumber,
+		"buildingName": room.BuildingName,
+		"capacity":     room.Capacity,
+		"address":      room.Address,
+		"latitude":     room.Latitude,
+		"longitude":    room.Longitude,
+	})
+}
+
+func (ac *AdminController) UpdateRoom(ctx *gin.Context) {
+	id, err := parseIDParam(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID parameter"})
+		return
+	}
+
+	var roomRequest InputRequest.UpdateRoomRequest
+	if err := ctx.ShouldBindJSON(&roomRequest); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	roomDTO := &dto.RoomDTO{
+		RoomNumber:   roomRequest.RoomNumber,
+		BuildingName: roomRequest.BuildingName,
+		Capacity:     roomRequest.Capacity,
+		Address:      roomRequest.Address,
+		Latitude:     roomRequest.Latitude,
+		Longitude:    roomRequest.Longitude,
+	}
+
+	room, err := ac.roomService.UpdateRoom(ctx.Request.Context(), id, roomDTO)
+	if err != nil {
+		if errors.Is(err, repository.ErrRoomNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
+			return
+		}
+		if errors.Is(err, service.ErrRoomAlreadyExists) {
+			ctx.JSON(http.StatusConflict, gin.H{"error": "Room with the same room number and building already exists in the records"})
+			return
+		}
+		if errors.Is(err, service.ErrRoomInvalidCapacity) ||
+			errors.Is(err, service.ErrRoomInvalidCoordinates) ||
+			errors.Is(err, service.ErrRoomFieldsInvalid) {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		log.Printf("Error while updating room details by Admin: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update room details"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"id":           room.ID,
+		"roomNumber":   room.RoomNumber,
+		"buildingName": room.BuildingName,
+		"capacity":     room.Capacity,
+		"address":      room.Address,
+		"latitude":     room.Latitude,
+		"longitude":    room.Longitude,
+	})
+}
+
+func (ac *AdminController) DeleteRoom(ctx *gin.Context) {
+	id, err := parseIDParam(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID parameter"})
+		return
+	}
+
+	if err := ac.roomService.DeleteRoom(ctx.Request.Context(), id); err != nil {
+		if errors.Is(err, repository.ErrRoomNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
+			return
+		}
+		log.Printf("Error while deleting room record by Admin: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete room record"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Room deleted successfully"})
+}
+
 func parseIDParam(ctx *gin.Context) (uint, error) {
 	idParam := ctx.Param("id")
 	id64, err := strconv.ParseUint(idParam, 10, 64)
@@ -582,6 +730,7 @@ func NewAdminController(
 	courseService service.CourseService,
 	sectionService service.SectionService,
 	enrollmentService service.EnrollmentService,
+	roomService service.RoomService,
 ) *AdminController {
 	return &AdminController{
 		userService:       userService,
@@ -589,5 +738,6 @@ func NewAdminController(
 		courseService:     courseService,
 		sectionService:    sectionService,
 		enrollmentService: enrollmentService,
+		roomService:       roomService,
 	}
 }
