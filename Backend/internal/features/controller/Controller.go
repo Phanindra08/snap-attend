@@ -38,15 +38,15 @@ func GetControllers() *Controller {
 		sectionService := service.NewSectionService(sectionRepo)
 		enrollmentService := service.NewEnrollmentService(enrollmentRepo, sectionRepo)
 		attendanceService := service.NewAttendanceService(attendanceRepo, enrollmentRepo)
+		professorService := service.NewProfessorService(sectionRepo, enrollmentRepo, attendanceRepo)
 
 		// Create all the controllers
 		controllerInstance = &Controller{
 			User: NewUserController(userService),
 			Admin: NewAdminController(userService, userRepo, courseService,
 				sectionService, enrollmentService),
-			Student: NewStudentController(attendanceService),
-			Professor: NewProfessorController(attendanceService, sectionRepo, enrollmentRepo,
-				userRepo, attendanceRepo),
+			Student:   NewStudentController(attendanceService),
+			Professor: NewProfessorController(professorService),
 		}
 	})
 	return controllerInstance

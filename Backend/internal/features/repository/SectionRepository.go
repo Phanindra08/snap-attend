@@ -75,6 +75,7 @@ func (sectionRepo *sectionRepository) UpdateSection(ctx context.Context, section
 func (sectionRepo *sectionRepository) GetSectionsByProfessor(ctx context.Context, professorId uint) ([]models.CourseSection, error) {
 	var sections []models.CourseSection
 	err := sectionRepo.db.WithContext(ctx).
+		Preload("Semester").
 		Where("professor_id = ?", professorId).
 		Find(&sections).Error
 	if err != nil {
