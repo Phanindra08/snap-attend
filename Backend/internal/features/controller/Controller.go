@@ -31,6 +31,7 @@ func GetControllers() *Controller {
 		sectionRepo := repository.NewSectionRepository(db)
 		enrollmentRepo := repository.NewEnrollmentRepository(db)
 		attendanceRepo := repository.NewAttendanceRepository(db)
+		roomRepo := repository.NewRoomRepository(db)
 
 		// Create all the services
 		userService := service.NewUserService(userRepo)
@@ -38,15 +39,16 @@ func GetControllers() *Controller {
 		sectionService := service.NewSectionService(sectionRepo)
 		enrollmentService := service.NewEnrollmentService(enrollmentRepo, sectionRepo)
 		attendanceService := service.NewAttendanceService(attendanceRepo, enrollmentRepo)
+		professorService := service.NewProfessorService(sectionRepo, enrollmentRepo, attendanceRepo)
+		roomService := service.NewRoomService(roomRepo)
 
 		// Create all the controllers
 		controllerInstance = &Controller{
 			User: NewUserController(userService),
 			Admin: NewAdminController(userService, userRepo, courseService,
-				sectionService, enrollmentService),
-			Student: NewStudentController(attendanceService),
-			Professor: NewProfessorController(attendanceService, sectionRepo, enrollmentRepo,
-				userRepo, attendanceRepo),
+				sectionService, enrollmentService, roomService),
+			Student:   NewStudentController(attendanceService),
+			Professor: NewProfessorController(professorService),
 		}
 	})
 	return controllerInstance
