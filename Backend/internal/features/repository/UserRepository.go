@@ -133,7 +133,7 @@ func (userRepo *userRepository) SearchUsersByNameAndRole(ctx context.Context, na
 	err := userRepo.db.WithContext(ctx).
 		Joins("UserProfile").
 		Preload("UserProfile").
-		Where("(users.first_name ILIKE ? OR users.last_name ILIKE ?) AND \"UserProfile\".role = ?", pattern, pattern, role).
+		Where("(users.first_name LIKE ? OR users.last_name LIKE ?) AND \"UserProfile\".role = ?", pattern, pattern, role).
 		Find(&users).Error
 	if err != nil {
 		return nil, fmt.Errorf("can't search users: %w", err)

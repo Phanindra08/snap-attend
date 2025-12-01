@@ -15,6 +15,8 @@ type CourseSection struct {
 	Semester         Semester                   `gorm:"foreignKey:SemesterId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	TotalSeats       uint                       `gorm:"not null"`
 	EnrolledSeats    uint                       `gorm:"default:0"`
+	Latitude         float64                    `gorm:"type:decimal(10,8)"`
+	Longitude        float64                    `gorm:"type:decimal(11,8)"`
 	SectionSchedules []SectionSchedule          `gorm:"foreignKey:SectionId"`
 	AttendanceQrs    []AttendanceQr             `gorm:"foreignKey:SectionId"`
 	Enrollments      []StudentSectionEnrollment `gorm:"foreignKey:SectionId"`

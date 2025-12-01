@@ -15,10 +15,38 @@ var (
 
 type SectionService interface {
 	AssignProfessorToSection(ctx context.Context, sectionId uint, professorId uint) (*models.CourseSection, error)
+	CreateSection(ctx context.Context, courseId uint, sectionNumber string, semesterId uint, roomId uint, latitude float64, longitude float64) (*models.CourseSection, error)
+	GetAllSections(ctx context.Context) ([]models.CourseSection, error)
+	UpdateSection(ctx context.Context, sectionId uint, sectionNumber *string, latitude *float64, longitude *float64, roomId *uint) (*models.CourseSection, error)
 }
 
 type sectionService struct {
 	sectionRepo repository.SectionRepository
+	roomRepo    repository.RoomRepository
+}
+
+func (sectionService *sectionService) CreateSection(ctx context.Context, courseId uint, sectionNumber string, semesterId uint, roomId uint, latitude float64, longitude float64) (*models.CourseSection, error) {
+	room, err := sectionService.roomRepo.GetRoomByID(ctx, roomId)
+	if err != nil {
+		return nil, err
+	}
+
+	section := &models.CourseSection{
+		CourseId:      courseId,
+		SectionNumber: sectionNumber,
+		SemesterId:    semesterId,
+		RoomId:        roomId,
+		TotalSeats:    uint(room.Capacity),
+		EnrolledSeats: 0,
+		Latitude:      latitude,
+		Longitude:     longitude,
+	}
+
+	if err := sectionService.sectionRepo.CreateSection(ctx, section); err != nil {
+		return nil, err
+	}
+
+	return section, nil
 }
 
 func (sectionService *sectionService) AssignProfessorToSection(ctx context.Context, sectionId uint, professorId uint) (*models.CourseSection, error) {
@@ -81,6 +109,39 @@ func (sectionService *sectionService) AssignProfessorToSection(ctx context.Conte
 	return section, nil
 }
 
-func NewSectionService(sectionRepo repository.SectionRepository) SectionService {
-	return &sectionService{sectionRepo: sectionRepo}
+func (sectionService *sectionService) GetAllSections(ctx context.Context) ([]models.CourseSection, error) {
+	return sectionService.sectionRepo.GetAllSections(ctx)
+}
+
+func (sectionService *sectionService) UpdateSection(ctx context.Context, sectionId uint, sectionNumber *string, latitude *float64, longitude *float64, roomId *uint) (*models.CourseSection, error) {
+	section, err := sectionService.sectionRepo.GetSectionByID(ctx, sectionId)
+	if err != nil {
+		return nil, err
+	}
+
+	if sectionNumber != nil {
+		section.SectionNumber = *sectionNumber
+	}
+	if latitude != nil {
+		section.Latitude = *latitude
+	}
+	if longitude != nil {
+		section.Longitude = *longitude
+	}
+	if roomId != nil {
+		section.RoomId = *roomId
+	}
+
+	if err := sectionService.sectionRepo.UpdateSection(ctx, section); err != nil {
+		return nil, err
+	}
+
+	return section, nil
+}
+
+func NewSectionService(sectionRepo repository.SectionRepository, roomRepo repository.RoomRepository) SectionService {
+	return &sectionService{
+		sectionRepo: sectionRepo,
+		roomRepo:    roomRepo,
+	}
 }

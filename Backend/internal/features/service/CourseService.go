@@ -96,9 +96,6 @@ func (courseService *courseService) DeleteCourse(ctx context.Context, id uint) e
 
 func (courseService *courseService) SearchCoursesByName(ctx context.Context, name string) ([]models.Course, error) {
 	trimmedCourseName := strings.TrimSpace(name)
-	if utils.IsEmpty(trimmedCourseName) {
-		return nil, errors.New("course name cannot be empty")
-	}
 	return courseService.courseRepo.SearchCoursesByName(ctx, trimmedCourseName)
 }
 

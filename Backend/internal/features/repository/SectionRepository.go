@@ -20,10 +20,19 @@ type SectionRepository interface {
 	UpdateSection(ctx context.Context, section *models.CourseSection) error
 	GetSectionsByProfessor(ctx context.Context, professorId uint) ([]models.CourseSection, error)
 	SearchSectionsByProfessorAndCourseName(ctx context.Context, professorId uint, name string) ([]models.CourseSection, error)
+	CreateSection(ctx context.Context, section *models.CourseSection) error
+	GetAllSections(ctx context.Context) ([]models.CourseSection, error)
 }
 
 type sectionRepository struct {
 	db *gorm.DB
+}
+
+func (sectionRepo *sectionRepository) CreateSection(ctx context.Context, section *models.CourseSection) error {
+	if err := sectionRepo.db.WithContext(ctx).Create(section).Error; err != nil {
+		return fmt.Errorf("can't create section: %w", err)
+	}
+	return nil
 }
 
 func (sectionRepo *sectionRepository) GetSectionByID(ctx context.Context, id uint) (*models.CourseSection, error) {
@@ -76,6 +85,9 @@ func (sectionRepo *sectionRepository) GetSectionsByProfessor(ctx context.Context
 	var sections []models.CourseSection
 	err := sectionRepo.db.WithContext(ctx).
 		Preload("Semester").
+		Preload("Course").
+		Preload("Room").
+		Preload("SectionSchedules").
 		Where("professor_id = ?", professorId).
 		Find(&sections).Error
 	if err != nil {
@@ -90,11 +102,25 @@ func (sectionRepo *sectionRepository) SearchSectionsByProfessorAndCourseName(ctx
 
 	err := sectionRepo.db.WithContext(ctx).
 		Joins("JOIN courses ON courses.id = course_sections.course_id").
-		Where("course_sections.professor_id = ? AND courses.course_name ILIKE ?", professorId, pattern).
+		Where("course_sections.professor_id = ? AND courses.course_name LIKE ?", professorId, pattern).
 		Preload("Course").
 		Find(&sections).Error
 	if err != nil {
 		return nil, fmt.Errorf("can't search sections for the professor: %w", err)
+	}
+	return sections, nil
+}
+
+func (sectionRepo *sectionRepository) GetAllSections(ctx context.Context) ([]models.CourseSection, error) {
+	var sections []models.CourseSection
+	err := sectionRepo.db.WithContext(ctx).
+		Preload("Course").
+		Preload("Semester").
+		Preload("Room").
+		Preload("SectionSchedules").
+		Find(&sections).Error
+	if err != nil {
+		return nil, fmt.Errorf("can't fetch all sections: %w", err)
 	}
 	return sections, nil
 }

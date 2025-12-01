@@ -13,6 +13,7 @@ type EnrollmentRepository interface {
 	CreateEnrollment(ctx context.Context, enrollment *models.StudentSectionEnrollment) error
 	GetEnrollmentByStudentAndSection(ctx context.Context, studentId uint, sectionId uint) (*models.StudentSectionEnrollment, error)
 	GetEnrollmentsByStudentAndSemester(ctx context.Context, studentId uint, semesterId uint) ([]models.StudentSectionEnrollment, error)
+	GetEnrollmentsByStudent(ctx context.Context, studentId uint) ([]models.StudentSectionEnrollment, error)
 	CountEnrollmentsByStudentAndSemester(ctx context.Context, studentId uint, semesterId uint) (int64, error)
 	GetEnrollmentsBySection(ctx context.Context, sectionId uint) ([]models.StudentSectionEnrollment, error)
 }
@@ -51,6 +52,21 @@ func (enrollRepo *enrollmentRepository) GetEnrollmentsByStudentAndSemester(ctx c
 		Preload("CourseSection.Semester").
 		Joins("JOIN course_sections ON course_sections.id = student_section_enrollments.section_id").
 		Where("student_section_enrollments.student_id = ? AND course_sections.semester_id = ?", studentId, semesterId).
+		Find(&enrollments).Error
+	if err != nil {
+		return nil, fmt.Errorf("can't fetch enrollments: %w", err)
+	}
+	return enrollments, nil
+}
+
+func (enrollRepo *enrollmentRepository) GetEnrollmentsByStudent(ctx context.Context, studentId uint) ([]models.StudentSectionEnrollment, error) {
+	var enrollments []models.StudentSectionEnrollment
+	err := enrollRepo.db.WithContext(ctx).
+		Preload("CourseSection").
+		Preload("CourseSection.SectionSchedules").
+		Preload("CourseSection.Course").
+		Preload("CourseSection.Semester").
+		Where("student_id = ?", studentId).
 		Find(&enrollments).Error
 	if err != nil {
 		return nil, fmt.Errorf("can't fetch enrollments: %w", err)

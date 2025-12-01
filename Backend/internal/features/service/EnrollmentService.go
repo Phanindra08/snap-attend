@@ -18,6 +18,7 @@ var (
 
 type EnrollmentService interface {
 	EnrollStudentInSection(ctx context.Context, studentId uint, sectionId uint) (*models.StudentSectionEnrollment, error)
+	GetStudentEnrollments(ctx context.Context, studentId uint) ([]models.StudentSectionEnrollment, error)
 }
 
 type enrollmentService struct {
@@ -108,6 +109,33 @@ func (enrollService *enrollmentService) EnrollStudentInSection(ctx context.Conte
 	}
 
 	return enrollment, nil
+}
+
+func (enrollService *enrollmentService) GetStudentEnrollments(ctx context.Context, studentId uint) ([]models.StudentSectionEnrollment, error) {
+	enrollments, err := enrollService.enrollmentRepo.GetEnrollmentsByStudent(ctx, studentId)
+	if err != nil {
+		return nil, err
+	}
+
+	var activeEnrollments []models.StudentSectionEnrollment
+	now := time.Now().UTC()
+
+	for _, enrollment := range enrollments {
+		semester := enrollment.CourseSection.Semester
+		
+		// Converting datatypes.Date to time.Time
+		startTime := time.Time(semester.StartDate)
+		endTime := time.Time(semester.EndDate)
+
+		startTime = time.Date(startTime.Year(), startTime.Month(), startTime.Day(), 0, 0, 0, 0, time.UTC)
+		endTime = time.Date(endTime.Year(), endTime.Month(), endTime.Day(), 23, 59, 59, 0, time.UTC)
+
+		if (now.Equal(startTime) || now.After(startTime)) && (now.Equal(endTime) || now.Before(endTime)) {
+			activeEnrollments = append(activeEnrollments, enrollment)
+		}
+	}
+
+	return activeEnrollments, nil
 }
 
 func NewEnrollmentService(enrollmentRepo repository.EnrollmentRepository, sectionRepo repository.SectionRepository) EnrollmentService {

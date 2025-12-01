@@ -7,9 +7,12 @@ import (
 )
 
 type DailyAttendanceRow struct {
-	Student    models.User
-	Present    bool
-	AttendedAt *time.Time
+	Student     models.User
+	StudentName     string
+	Present         bool
+	AttendedAt      *time.Time
+	StudentQuestion string
+	StudentAnswer   string
 }
 
 type CourseSearchResult struct {
