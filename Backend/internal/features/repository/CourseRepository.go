@@ -78,7 +78,7 @@ func (userRepo *courseRepository) SearchCoursesByName(ctx context.Context, name 
 	pattern := "%" + name + "%"
 
 	if err := userRepo.db.WithContext(ctx).
-		Where("course_name ILIKE ?", pattern).
+		Where("course_name LIKE ?", pattern).
 		Find(&courses).Error; err != nil {
 		return nil, fmt.Errorf("can't search courses: %w", err)
 	}

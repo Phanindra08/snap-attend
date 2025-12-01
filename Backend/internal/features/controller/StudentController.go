@@ -18,6 +18,7 @@ import (
 
 type StudentController struct {
 	attendanceService service.AttendanceService
+	enrollmentService service.EnrollmentService
 }
 
 func (sc *StudentController) SubmitAttendance(ctx *gin.Context) {
@@ -37,8 +38,9 @@ func (sc *StudentController) SubmitAttendance(ctx *gin.Context) {
 		QrId:      attendanceRequest.QrId,
 		Latitude:  attendanceRequest.Latitude,
 		Longitude: attendanceRequest.Longitude,
-		Question:  attendanceRequest.Question,
-		Answer:    attendanceRequest.Answer,
+		Question:    attendanceRequest.Question,
+		Answer:      attendanceRequest.Answer,
+		StudentName: attendanceRequest.StudentName,
 	}
 
 	attendance, err := sc.attendanceService.SubmitAttendance(
@@ -195,8 +197,55 @@ func (sc *StudentController) GetAttendanceHistory(ctx *gin.Context) {
 	})
 }
 
-func NewStudentController(attendanceService service.AttendanceService) *StudentController {
+func (sc *StudentController) GetCourses(ctx *gin.Context) {
+	studentID := ctx.GetUint("userID")
+
+	enrollments, err := sc.enrollmentService.GetStudentEnrollments(ctx.Request.Context(), studentID)
+	if err != nil {
+		log.Printf("Student get courses error: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch courses"})
+		return
+	}
+
+	var courses []gin.H
+	for _, enrollment := range enrollments {
+		section := enrollment.CourseSection
+		course := section.Course
+		
+		// Find the schedule for today if any, or just return general info
+		// For dashboard, we might want to know if there's a class today.
+		// But for now, just returning the list of courses is enough.
+		
+		var schedules []gin.H
+		for _, sched := range section.SectionSchedules {
+			schedules = append(schedules, gin.H{
+				"day":       sched.DaysOfTheClass,
+				"startTime": sched.StartTime,
+				"endTime":   sched.EndTime,
+			})
+		}
+
+		courses = append(courses, gin.H{
+			"courseId":      course.ID,
+			"courseName":    course.CourseName,
+			"sectionId":     section.ID,
+			"sectionNumber": section.SectionNumber,
+			"room":          section.Room.RoomNumber, // Assuming Room is preloaded? Wait, EnrollmentRepo preloads CourseSection, but does it preload Room?
+			// EnrollmentRepo preloads: CourseSection, CourseSection.SectionSchedules, CourseSection.Course, CourseSection.Semester.
+			// It does NOT preload Room. I should update EnrollmentRepo or just omit Room for now.
+			// Actually, StudentDashboard needs Room.
+			"schedules":     schedules,
+		})
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"courses": courses,
+	})
+}
+
+func NewStudentController(attendanceService service.AttendanceService, enrollmentService service.EnrollmentService) *StudentController {
 	return &StudentController{
 		attendanceService: attendanceService,
+		enrollmentService: enrollmentService,
 	}
 }

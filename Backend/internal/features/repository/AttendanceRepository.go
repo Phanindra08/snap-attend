@@ -28,6 +28,7 @@ type AttendanceRepository interface {
 	GetStudentAttendanceBySection(ctx context.Context, sectionId uint, from *time.Time, to *time.Time, studentId *uint) ([]StudentAttendanceWithUser, error)
 	UpdateStudentAttendance(ctx context.Context, attendance *models.StudentAttendance) error
 	CountStudentAttendanceBySection(ctx context.Context, studentId uint, sectionId uint) (int64, error)
+	GetActiveQrBySectionId(ctx context.Context, sectionId uint) (*models.AttendanceQr, error)
 }
 
 type attendanceRepository struct {
@@ -214,6 +215,20 @@ func (attendanceRepo *attendanceRepository) CountStudentAttendanceBySection(ctx 
 		return 0, fmt.Errorf("can't count the student attendance: %w", err)
 	}
 	return count, nil
+}
+
+func (attendanceRepo *attendanceRepository) GetActiveQrBySectionId(ctx context.Context, sectionId uint) (*models.AttendanceQr, error) {
+	var attendanceQr models.AttendanceQr
+	err := attendanceRepo.db.WithContext(ctx).
+		Where("section_id = ? AND is_active = ?", sectionId, true).
+		First(&attendanceQr).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // No active QR
+		}
+		return nil, fmt.Errorf("can't find active QR: %w", err)
+	}
+	return &attendanceQr, nil
 }
 
 func NewAttendanceRepository(db *gorm.DB) AttendanceRepository {

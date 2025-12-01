@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -9,17 +10,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/phanindra08/snap-attend/internal/features/InputRequest"
-	"github.com/phanindra08/snap-attend/internal/features/repository"
 	"github.com/phanindra08/snap-attend/internal/features/service"
 	"github.com/phanindra08/snap-attend/internal/shared/utils"
 )
 
 type ProfessorController struct {
-	attendanceService service.AttendanceService
-	sectionRepo       repository.SectionRepository
-	enrollmentRepo    repository.EnrollmentRepository
-	userRepo          repository.UserRepository
-	attendanceRepo    repository.AttendanceRepository
+	professorService service.ProfessorService
 }
 
 func (pc *ProfessorController) GenerateAttendanceQr(ctx *gin.Context) {
@@ -31,42 +27,12 @@ func (pc *ProfessorController) GenerateAttendanceQr(ctx *gin.Context) {
 		return
 	}
 
-	section, err := pc.sectionRepo.GetSectionByID(ctx.Request.Context(), sectionID)
+	qr, err := pc.professorService.GenerateAttendanceQr(ctx.Request.Context(), professorID, sectionID)
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "Section not found"})
-		return
-	}
-
-	if section.ProfessorId != professorID {
-		ctx.JSON(http.StatusForbidden, gin.H{"error": "This section is not offered by you. Please select the course which you are teaching."})
-		return
-	}
-
-	now := time.Now().UTC()
-	if !utils.IsClassInSessionNow(now, section.SectionSchedules) {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Class is not currently in the scheduled time."})
-		return
-	}
-
-	// Deactivating any existing active QR's for this section
-	if err := pc.attendanceRepo.DeactivateActiveQrsForSection(ctx.Request.Context(), sectionID); err != nil {
-		log.Printf("Failed to deactivate previous QRs: %v", err)
-	}
-
-	generatedAt := now
-	expiresAt := generatedAt.Add(time.Minute * utils.QR_TTL_MINUTES)
-
-	qr := &section.AttendanceQrs
-	_ = qr
-
-	newQr := &repository.AttendanceQrModelForCreate{
-		SectionId:   sectionID,
-		GeneratedAt: generatedAt,
-		ExpiresAt:   expiresAt,
-	}
-
-	createdQr, err := pc.attendanceRepo.CreateAttendanceQr(ctx.Request.Context(), newQr)
-	if err != nil {
+		if errors.Is(err, service.ErrProfessorNotOwner) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": "This section is not offered by you. Please select the course which you are teaching."})
+			return
+		}
 		log.Printf("error while generating QR by Professor: %v", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate attendance QR"})
 		return
@@ -75,11 +41,11 @@ func (pc *ProfessorController) GenerateAttendanceQr(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, gin.H{
 		"message": "Attendance QR generated successfully",
 		"qr": gin.H{
-			"id":          createdQr.ID,
-			"sectionId":   createdQr.SectionId,
-			"generatedAt": createdQr.GeneratedAt,
-			"expiresAt":   createdQr.ExpiresAt,
-			"qrHint":      createdQr.QrLink,
+			"id":          qr.ID,
+			"sectionId":   qr.SectionId,
+			"generatedAt": qr.GeneratedAt,
+			"expiresAt":   qr.ExpiresAt,
+			"qrHint":      qr.QrLink,
 		},
 	})
 }
@@ -90,16 +56,6 @@ func (pc *ProfessorController) GetDailyAttendanceReport(ctx *gin.Context) {
 	sectionID, err := parseUintParam(ctx, "sectionId")
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sectionId"})
-		return
-	}
-
-	section, err := pc.sectionRepo.GetSectionByID(ctx.Request.Context(), sectionID)
-	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "Section not found"})
-		return
-	}
-	if section.ProfessorId != professorID {
-		ctx.JSON(http.StatusForbidden, gin.H{"error": "This section is not offered by you. Please select the course which you are teaching."})
 		return
 	}
 
@@ -115,55 +71,29 @@ func (pc *ProfessorController) GetDailyAttendanceReport(ctx *gin.Context) {
 		return
 	}
 
-	fromDate := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.UTC)
-	toDate := fromDate.Add(24*time.Hour - time.Nanosecond)
-
-	records, err := pc.attendanceRepo.GetStudentAttendanceBySection(ctx.Request.Context(), sectionID, &fromDate, &toDate, nil)
+	attendanceReport, err := pc.professorService.GetDailyAttendanceReport(ctx.Request.Context(), professorID, sectionID, day)
 	if err != nil {
+		if errors.Is(err, service.ErrProfessorNotOwner) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": "This section is not offered by you. Please select the course which you are teaching."})
+			return
+		}
 		log.Printf("Error while fetching daily attendance report by Professor: %v", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch attendance records"})
 		return
 	}
 
-	// retrieving all the enrolled students (including those absent that day)
-	enrollments, err := pc.enrollmentRepo.GetEnrollmentsBySection(ctx.Request.Context(), sectionID)
-	if err != nil {
-		log.Printf("Error while fetching daily report based on enrollments by Professor: %v", err)
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch enrollments"})
-		return
-	}
-
-	attendanceByStudent := make(map[uint][]repository.StudentAttendanceWithUser)
-	for _, record := range records {
-		attendanceByStudent[record.StudentId] = append(attendanceByStudent[record.StudentId], record)
-	}
-
 	var result []gin.H
-	for _, enrollment := range enrollments {
-		student := enrollment.Student
-		attendanceRecords := attendanceByStudent[student.ID]
-
-		present := false
-		var attendedAt *time.Time
-
-		for _, record := range attendanceRecords {
-			if record.Attended {
-				present = true
-				timeAt := record.AttendedAt
-				attendedAt = &timeAt
-				break
-			}
-		}
-
+	for _, row := range attendanceReport {
 		result = append(result, gin.H{
-			"studentId":  student.ID,
-			"firstName":  student.FirstName,
-			"lastName":   student.LastName,
-			"email":      student.Email,
-			"present":    present,
-			"attendedAt": attendedAt,
-			"question":   nil,
-			"answer":     nil,
+			"studentId":   row.Student.ID,
+			"firstName":   row.Student.FirstName,
+			"lastName":    row.Student.LastName,
+			"email":       row.Student.Email,
+			"studentName": row.StudentName,
+			"present":     row.Present,
+			"attendedAt":  row.AttendedAt,
+			"question":    row.StudentQuestion,
+			"answer":      row.StudentAnswer,
 		})
 	}
 
@@ -183,19 +113,9 @@ func (pc *ProfessorController) GetSectionAttendance(ctx *gin.Context) {
 		return
 	}
 
-	section, err := pc.sectionRepo.GetSectionByID(ctx.Request.Context(), sectionID)
-	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "Section not found"})
-		return
-	}
-	if section.ProfessorId != professorID {
-		ctx.JSON(http.StatusForbidden, gin.H{"error": "This section is not offered by you. Please select the course which you are teaching."})
-		return
-	}
-
 	var (
-		from      *time.Time
-		to        *time.Time
+		fromDate  *time.Time
+		toDate    *time.Time
 		studentId *uint
 	)
 
@@ -207,7 +127,7 @@ func (pc *ProfessorController) GetSectionAttendance(ctx *gin.Context) {
 			return
 		}
 		formattedStartDate := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
-		from = &formattedStartDate
+		fromDate = &formattedStartDate
 	}
 
 	endDateInStringFormat := strings.TrimSpace(ctx.Query("endDate"))
@@ -218,7 +138,7 @@ func (pc *ProfessorController) GetSectionAttendance(ctx *gin.Context) {
 			return
 		}
 		formattedEndDate := time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 23, 59, 59, 0, time.UTC)
-		to = &formattedEndDate
+		toDate = &formattedEndDate
 	}
 
 	studentIdInStringFormat := strings.TrimSpace(ctx.Query("studentId"))
@@ -232,8 +152,12 @@ func (pc *ProfessorController) GetSectionAttendance(ctx *gin.Context) {
 		studentId = &formattedStudentId
 	}
 
-	records, err := pc.attendanceRepo.GetStudentAttendanceBySection(ctx.Request.Context(), sectionID, from, to, studentId)
+	records, err := pc.professorService.GetSectionAttendance(ctx.Request.Context(), professorID, sectionID, fromDate, toDate, studentId)
 	if err != nil {
+		if errors.Is(err, service.ErrProfessorNotOwner) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": "This section is not offered by you. Please select the course which you are teaching."})
+			return
+		}
 		log.Printf("Error while querying the sections attendance by Professor: %v", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch attendance records"})
 		return
@@ -270,19 +194,7 @@ func (pc *ProfessorController) UpdateAttendanceStatus(ctx *gin.Context) {
 
 	attendanceID, err := parseUintParam(ctx, "attendanceId")
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid attendanceId"})
-		return
-	}
-
-	record, err := pc.attendanceRepo.GetAttendanceByIDWithSection(ctx.Request.Context(), attendanceID)
-	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "Attendance record is not found"})
-		return
-	}
-
-	section := record.AttendanceQr.CourseSection
-	if section.ProfessorId != professorID {
-		ctx.JSON(http.StatusForbidden, gin.H{"error": "This section is not offered by you. Please select the course which you are teaching."})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid attendance record"})
 		return
 	}
 
@@ -296,9 +208,21 @@ func (pc *ProfessorController) UpdateAttendanceStatus(ctx *gin.Context) {
 		return
 	}
 
-	record.Attended = *attendanceStatusRequest.Attended
-
-	if err := pc.attendanceRepo.UpdateStudentAttendance(ctx.Request.Context(), record); err != nil {
+	record, err := pc.professorService.UpdateAttendanceStatus(
+		ctx.Request.Context(),
+		professorID,
+		attendanceID,
+		*attendanceStatusRequest.Attended,
+	)
+	if err != nil {
+		if errors.Is(err, service.ErrProfessorNotOwner) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": "This section is not offered by you. Please select the course which you are teaching."})
+			return
+		}
+		if errors.Is(err, service.ErrAttendanceNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Attendance record is not found"})
+			return
+		}
 		log.Printf("Error while updating the attendance by Professor: %v", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update attendance"})
 		return
@@ -317,70 +241,41 @@ func (pc *ProfessorController) Search(ctx *gin.Context) {
 	courseName := strings.TrimSpace(ctx.Query("courseName"))
 	studentName := strings.TrimSpace(ctx.Query("studentName"))
 
-	if utils.IsEmpty(courseName) || utils.IsEmpty(studentName) {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "At least one search parameter must be provided"})
+	professorSearchResult, err := pc.professorService.Search(ctx.Request.Context(), professorID, courseName, studentName)
+	if err != nil {
+		if errors.Is(err, service.ErrProfessorSearchEmpty) {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "At least one search parameter must be provided"})
+			return
+		}
+		log.Printf("Error while searching by Professor: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to perform search"})
 		return
 	}
 
 	response := gin.H{}
 
-	if !utils.IsEmpty(courseName) {
-		sections, err := pc.sectionRepo.SearchSectionsByProfessorAndCourseName(ctx.Request.Context(), professorID, courseName)
-		if err != nil {
-			log.Printf("Error while searching courses by Professor: %v", err)
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search courses"})
-			return
-		}
-
+	if len(professorSearchResult.Courses) > 0 {
 		var courseResults []gin.H
-		for _, section := range sections {
+		for _, searchResult := range professorSearchResult.Courses {
 			courseResults = append(courseResults, gin.H{
-				"courseId":      section.Course.ID,
-				"courseName":    section.Course.CourseName,
-				"sectionId":     section.ID,
-				"sectionNumber": section.SectionNumber,
+				"courseId":      searchResult.CourseID,
+				"courseName":    searchResult.CourseName,
+				"sectionId":     searchResult.SectionID,
+				"sectionNumber": searchResult.SectionNumber,
 			})
 		}
 		response["courses"] = courseResults
 	}
 
-	if !utils.IsEmpty(studentName) {
-		sections, err := pc.sectionRepo.GetSectionsByProfessor(ctx.Request.Context(), professorID)
-		if err != nil {
-			log.Printf("Error while searching students sections by Professor: %v", err)
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search students"})
-			return
-		}
-
-		studentName := utils.TrimAndConvertToLowerCase(studentName)
-		seen := make(map[uint]bool)
+	if len(professorSearchResult.Students) > 0 {
 		var students []gin.H
-
-		for _, section := range sections {
-			enrollments, err := pc.enrollmentRepo.GetEnrollmentsBySection(ctx.Request.Context(), section.ID)
-			if err != nil {
-				log.Printf("Error while searching students enrollments by Professor: %v", err)
-				ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search students"})
-				return
-			}
-
-			for _, enrollment := range enrollments {
-				student := enrollment.Student
-				if seen[student.ID] {
-					continue
-				}
-
-				fullName := utils.TrimAndConvertToLowerCase(student.FirstName + " " + student.LastName)
-				if strings.Contains(fullName, studentName) {
-					seen[student.ID] = true
-					students = append(students, gin.H{
-						"studentId": student.ID,
-						"firstName": student.FirstName,
-						"lastName":  student.LastName,
-						"email":     student.Email,
-					})
-				}
-			}
+		for _, searchResult := range professorSearchResult.Students {
+			students = append(students, gin.H{
+				"studentId": searchResult.StudentID,
+				"firstName": searchResult.FirstName,
+				"lastName":  searchResult.LastName,
+				"email":     searchResult.Email,
+			})
 		}
 		response["students"] = students
 	}
@@ -397,60 +292,33 @@ func (pc *ProfessorController) GetSectionAttendanceOverview(ctx *gin.Context) {
 		return
 	}
 
-	section, err := pc.sectionRepo.GetSectionByID(ctx.Request.Context(), sectionID)
+	overview, err := pc.professorService.GetSectionAttendanceOverview(ctx.Request.Context(), professorID, sectionID)
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "Section not found"})
-		return
-	}
-	if section.ProfessorId != professorID {
-		ctx.JSON(http.StatusForbidden, gin.H{"error": "This section is not offered by you. Please select the course which you are teaching."})
-		return
-	}
-
-	totalSessions, err := pc.attendanceRepo.CountAttendanceQrBySectionUntilNow(ctx.Request.Context(), sectionID)
-	if err != nil {
-		log.Printf("Error while retrieving the total attendance overview by Professor: %v", err)
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count sessions"})
-		return
-	}
-
-	enrollments, err := pc.enrollmentRepo.GetEnrollmentsBySection(ctx.Request.Context(), sectionID)
-	if err != nil {
-		log.Printf("Error while retrieving enrollments by Professor: %v", err)
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch enrollments"})
+		if errors.Is(err, service.ErrProfessorNotOwner) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": "This section is not offered by you. Please select the course which you are teaching."})
+			return
+		}
+		log.Printf("Error while retrieving section attendance overview by Professor: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to compute attendance"})
 		return
 	}
 
 	var result []gin.H
-	for _, enrollment := range enrollments {
-		student := enrollment.Student
-
-		attendedCount, err := pc.attendanceRepo.CountStudentAttendanceBySection(ctx.Request.Context(), student.ID, sectionID)
-		if err != nil {
-			log.Printf("Error while retrieving count of student attendance by Professor: %v", err)
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to compute attendance"})
-			return
-		}
-
-		var pct float64
-		if totalSessions > 0 {
-			pct = (float64(attendedCount) / float64(totalSessions)) * 100.0
-		}
-
+	for _, row := range overview.Students {
 		result = append(result, gin.H{
-			"studentId":       student.ID,
-			"firstName":       student.FirstName,
-			"lastName":        student.LastName,
-			"email":           student.Email,
-			"attendedClasses": attendedCount,
-			"totalClasses":    totalSessions,
-			"attendancePct":   pct,
+			"studentId":       row.StudentID,
+			"firstName":       row.FirstName,
+			"lastName":        row.LastName,
+			"email":           row.Email,
+			"attendedClasses": row.AttendedClasses,
+			"totalClasses":    row.TotalClasses,
+			"attendancePct":   row.AttendancePct,
 		})
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"sectionId":          sectionID,
-		"totalSessions":      totalSessions,
+		"sectionId":          overview.SectionID,
+		"totalSessions":      overview.TotalSessions,
 		"studentsAttendance": result,
 	})
 }
@@ -464,18 +332,45 @@ func parseUintParam(ctx *gin.Context, name string) (uint, error) {
 	return uint(id64), nil
 }
 
-func NewProfessorController(
-	attendanceService service.AttendanceService,
-	sectionRepo repository.SectionRepository,
-	enrollmentRepo repository.EnrollmentRepository,
-	userRepo repository.UserRepository,
-	attendanceRepo repository.AttendanceRepository,
-) *ProfessorController {
+func (pc *ProfessorController) GetSections(ctx *gin.Context) {
+	professorID := ctx.GetUint("userID")
+
+	sections, err := pc.professorService.GetSectionsForProfessor(ctx.Request.Context(), professorID)
+	if err != nil {
+		log.Printf("Professor get sections error: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch sections"})
+		return
+	}
+
+	var result []gin.H
+	for _, section := range sections {
+		// Find the schedule for today if any, or just return general info
+		var schedules []gin.H
+		for _, sched := range section.SectionSchedules {
+			schedules = append(schedules, gin.H{
+				"day":       sched.DaysOfTheClass,
+				"startTime": sched.StartTime,
+				"endTime":   sched.EndTime,
+			})
+		}
+
+		result = append(result, gin.H{
+			"courseId":      section.CourseId,
+			"courseName":    section.Course.CourseName,
+			"sectionId":     section.ID,
+			"sectionNumber": section.SectionNumber,
+			"room":          section.Room.RoomNumber,
+			"schedules":     schedules,
+		})
+	}
+	
+	ctx.JSON(http.StatusOK, gin.H{
+		"courses": result,
+	})
+}
+
+func NewProfessorController(professorService service.ProfessorService) *ProfessorController {
 	return &ProfessorController{
-		attendanceService: attendanceService,
-		sectionRepo:       sectionRepo,
-		enrollmentRepo:    enrollmentRepo,
-		userRepo:          userRepo,
-		attendanceRepo:    attendanceRepo,
+		professorService: professorService,
 	}
 }
