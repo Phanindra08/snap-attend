@@ -85,14 +85,15 @@ func (pc *ProfessorController) GetDailyAttendanceReport(ctx *gin.Context) {
 	var result []gin.H
 	for _, row := range attendanceReport {
 		result = append(result, gin.H{
-			"studentId":  row.Student.ID,
-			"firstName":  row.Student.FirstName,
-			"lastName":   row.Student.LastName,
-			"email":      row.Student.Email,
-			"present":    row.Present,
-			"attendedAt": row.AttendedAt,
-			"question":   nil,
-			"answer":     nil,
+			"studentId":   row.Student.ID,
+			"firstName":   row.Student.FirstName,
+			"lastName":    row.Student.LastName,
+			"email":       row.Student.Email,
+			"studentName": row.StudentName,
+			"present":     row.Present,
+			"attendedAt":  row.AttendedAt,
+			"question":    row.StudentQuestion,
+			"answer":      row.StudentAnswer,
 		})
 	}
 
@@ -329,6 +330,43 @@ func parseUintParam(ctx *gin.Context, name string) (uint, error) {
 		return 0, err
 	}
 	return uint(id64), nil
+}
+
+func (pc *ProfessorController) GetSections(ctx *gin.Context) {
+	professorID := ctx.GetUint("userID")
+
+	sections, err := pc.professorService.GetSectionsForProfessor(ctx.Request.Context(), professorID)
+	if err != nil {
+		log.Printf("Professor get sections error: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch sections"})
+		return
+	}
+
+	var result []gin.H
+	for _, section := range sections {
+		// Find the schedule for today if any, or just return general info
+		var schedules []gin.H
+		for _, sched := range section.SectionSchedules {
+			schedules = append(schedules, gin.H{
+				"day":       sched.DaysOfTheClass,
+				"startTime": sched.StartTime,
+				"endTime":   sched.EndTime,
+			})
+		}
+
+		result = append(result, gin.H{
+			"courseId":      section.CourseId,
+			"courseName":    section.Course.CourseName,
+			"sectionId":     section.ID,
+			"sectionNumber": section.SectionNumber,
+			"room":          section.Room.RoomNumber,
+			"schedules":     schedules,
+		})
+	}
+	
+	ctx.JSON(http.StatusOK, gin.H{
+		"courses": result,
+	})
 }
 
 func NewProfessorController(professorService service.ProfessorService) *ProfessorController {

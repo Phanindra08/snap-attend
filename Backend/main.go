@@ -113,6 +113,7 @@ func registerRoutes(router *gin.Engine, controller *controller.Controller) {
 			student.POST("/attendance", controller.Student.SubmitAttendance)
 			student.GET("/attendance/summary", controller.Student.GetAttendanceSummary)
 			student.GET("/attendance/history", controller.Student.GetAttendanceHistory)
+			student.GET("/courses", controller.Student.GetCourses)
 		}
 
 		professor := api.Group("/professor")
@@ -124,6 +125,7 @@ func registerRoutes(router *gin.Engine, controller *controller.Controller) {
 			professor.PUT("/attendance/:attendanceId", controller.Professor.UpdateAttendanceStatus)
 			professor.GET("/search", controller.Professor.Search)
 			professor.GET("/sections/:sectionId/attendance/overview", controller.Professor.GetSectionAttendanceOverview)
+			professor.GET("/sections", controller.Professor.GetSections)
 		}
 
 		admin := api.Group("/admin")
@@ -131,11 +133,13 @@ func registerRoutes(router *gin.Engine, controller *controller.Controller) {
 		{
 			// Students
 			admin.POST("/students", controller.Admin.CreateStudent)
+			admin.GET("/students", controller.Admin.GetAllStudents)
 			admin.GET("/students/:id", controller.Admin.GetStudentByID)
 			admin.PUT("/students/:id", controller.Admin.UpdateStudent)
 
 			// Professors
 			admin.POST("/professors", controller.Admin.CreateProfessor)
+			admin.GET("/professors", controller.Admin.GetAllProfessors)
 			admin.GET("/professors/:id", controller.Admin.GetProfessorByID)
 			admin.PUT("/professors/:id", controller.Admin.UpdateProfessor)
 
@@ -144,11 +148,15 @@ func registerRoutes(router *gin.Engine, controller *controller.Controller) {
 
 			// Courses by Admin
 			admin.POST("/courses", controller.Admin.CreateCourse)
+			admin.GET("/courses", controller.Admin.GetAllCourses)
 			admin.GET("/courses/:id", controller.Admin.GetCourseByID)
 			admin.PUT("/courses/:id", controller.Admin.UpdateCourse)
 			admin.DELETE("/courses/:id", controller.Admin.DeleteCourse)
 
 			admin.POST("/enrollments", controller.Admin.EnrollStudentInSection)
+			admin.GET("/sections", controller.Admin.GetAllSections)
+			admin.POST("/sections", controller.Admin.CreateSection)
+			admin.PUT("/sections/:id", controller.Admin.UpdateSection)
 			admin.POST("/sections/assign-professor", controller.Admin.AssignProfessorToSection)
 			admin.GET("/search", controller.Admin.Search)
 

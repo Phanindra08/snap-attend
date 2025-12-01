@@ -5,10 +5,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/phanindra08/snap-attend/internal/shared/config"
 	"github.com/phanindra08/snap-attend/internal/shared/models"
 	"github.com/phanindra08/snap-attend/internal/shared/utils"
-	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -18,15 +17,11 @@ var db *gorm.DB
 // initDB Function - Initializes the database connection
 func initDB() {
 	var err error
-	// Full form of dsn - Data Source Name
-	dsn := config.GetConfig().GetConnectionStringForDB()
+	
+	// Use SQLite for local development to avoid Postgres dependency
+	// dsn := config.GetConfig().GetConnectionStringForDB()
 
-	pgConfig := postgres.Config{
-		DSN:                  dsn,
-		PreferSimpleProtocol: true, // Recommended for pgBouncer
-	}
-
-	// Configuring the GORM for using PostGre SQL
+	// Configuring the GORM
 	gormConfig := &gorm.Config{
 		Logger: logger.Default.LogMode(utils.DB_LOG_LEVEL),
 		NowFunc: func() time.Time {
@@ -36,7 +31,7 @@ func initDB() {
 
 	// Trying to establish DB connection with a retry logic
 	for i := 0; i < utils.MAX_DB_RETRIES; i++ {
-		db, err = gorm.Open(postgres.New(pgConfig), gormConfig)
+		db, err = gorm.Open(sqlite.Open("snapattend.db"), gormConfig)
 		if err == nil {
 			break
 		}

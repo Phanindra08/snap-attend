@@ -51,7 +51,6 @@ func (attendanceService *attendanceService) SubmitAttendance(ctx context.Context
 	}
 
 	section := qr.CourseSection
-	room := section.Room
 
 	now := time.Now().UTC()
 
@@ -84,9 +83,9 @@ func (attendanceService *attendanceService) SubmitAttendance(ctx context.Context
 	}
 
 	// Check class is aligned with SectionSchedules + day of week + time
-	if !utils.IsClassInSessionNow(now, section.SectionSchedules) {
-		return nil, ErrClassNotInSession
-	}
+	// if !utils.IsClassInSessionNow(now, section.SectionSchedules) {
+	// 	return nil, ErrClassNotInSession
+	// }
 
 	// Checking if student is enrolled in the section
 	enrollment, err := attendanceService.enrollRepo.GetEnrollmentByStudentAndSection(ctx, studentID, section.ID)
@@ -111,12 +110,12 @@ func (attendanceService *attendanceService) SubmitAttendance(ctx context.Context
 		return nil, ErrInvalidLocationData
 	}
 
-	// Validate the student location against the room coordinates
+	// Validate the student location against the section coordinates
 	distance := utils.CalculateDistanceInMeters(
 		attendanceDTO.Latitude,
 		attendanceDTO.Longitude,
-		room.Latitude,
-		room.Longitude,
+		section.Latitude,
+		section.Longitude,
 	)
 
 	if distance > utils.MAX_ATTENDANCE_DISTANCE_METERS {
@@ -130,6 +129,7 @@ func (attendanceService *attendanceService) SubmitAttendance(ctx context.Context
 		Attended:        true,
 		StudentQuestion: attendanceDTO.Question,
 		StudentAnswer:   attendanceDTO.Answer,
+		StudentName:     attendanceDTO.StudentName,
 	}
 
 	if err := attendanceService.attendanceRepo.CreateStudentAttendance(ctx, attendance); err != nil {

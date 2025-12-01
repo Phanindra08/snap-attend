@@ -14,4 +14,5 @@ type StudentAttendance struct {
 	Attended        bool         `gorm:"not null;default:false"`
 	StudentQuestion string       `gorm:"type:text"`
 	StudentAnswer   string       `gorm:"type:text"`
+	StudentName     string       `gorm:"type:varchar(255)"`
 }
